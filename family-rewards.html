@@ -800,6 +800,52 @@
   }
   .filter-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
 
+  /* Search */
+  .search-bar {
+    position: relative;
+    margin-bottom: 16px;
+  }
+  .search-bar input {
+    width: 100%;
+    padding: 12px 40px 12px 40px;
+    font-size: 15px;
+    border-radius: 12px;
+    border: 1px solid var(--border-soft);
+    background: var(--bg-elevated);
+    color: var(--text);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .search-bar input::placeholder { color: var(--text-dim); }
+  .search-bar input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
+  }
+  .search-icon {
+    position: absolute;
+    left: 12px; top: 50%; transform: translateY(-50%);
+    width: 18px; height: 18px;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .search-clear {
+    position: absolute;
+    right: 8px; top: 50%; transform: translateY(-50%);
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: none;
+    align-items: center; justify-content: center;
+    color: var(--text-muted);
+    background: transparent;
+    font-size: 13px;
+  }
+  .search-clear:hover { background: var(--border-soft); color: var(--text); }
+  .search-clear.show { display: inline-flex; }
+  .search-meta {
+    font-size: 12px; color: var(--text-dim);
+    margin: -4px 0 12px 4px;
+  }
+
   /* Date input */
   .date-input {
     padding: 6px 10px;
@@ -915,6 +961,16 @@
 
     <div class="section-title">Recent redemptions <span class="right"><button class="filter-pill" id="show-all-redemptions">Show all</button></span></div>
     <div id="redemptions-list"></div>
+  </section>
+
+  <!-- SEARCH TAB -->
+  <section class="tab" id="tab-search">
+    <div class="search-bar">
+      <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="search-input" placeholder="Search activities, rewards, categories…" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <button class="search-clear" id="search-clear" title="Clear" aria-label="Clear search">✕</button>
+    </div>
+    <div id="search-results"></div>
   </section>
 
   <!-- SETTINGS TAB -->
@@ -1039,6 +1095,10 @@
   <button data-tab="rewards">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
     <span>Rewards</span>
+  </button>
+  <button data-tab="search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <span>Search</span>
   </button>
   <button data-tab="settings">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1427,6 +1487,7 @@ function logActivity(activity, btn) {
   renderPersonRow();
   renderHero();
   renderRecent();
+  renderSearchIfActive();
   if (btn) {
     btn.classList.remove('flash');
     void btn.offsetWidth;
@@ -1434,7 +1495,7 @@ function logActivity(activity, btn) {
   }
   burstConfetti();
   toast(`+${pts} for ${p.name} · ${activity.name}`, {
-    undo: () => { state.records = state.records.filter(r => r.id !== rec.id); save(); renderPersonRow(); renderHero(); renderRecent(); toast('Removed'); }
+    undo: () => { state.records = state.records.filter(r => r.id !== rec.id); save(); renderPersonRow(); renderHero(); renderRecent(); renderSearchIfActive(); toast('Removed'); }
   });
 }
 
@@ -1640,6 +1701,7 @@ function redeemReward(reward, btn) {
   renderRewardsTab();
   renderPersonRow();   // Log tab chips update too
   renderHero();        // Log tab hero balance updates
+  renderSearchIfActive();
   if (btn) {
     btn.classList.remove('flash');
     void btn.offsetWidth;
@@ -1649,7 +1711,7 @@ function redeemReward(reward, btn) {
     undo: () => {
       state.records = state.records.filter(r => r.id !== rec.id);
       save();
-      renderRewardsTab(); renderPersonRow(); renderHero();
+      renderRewardsTab(); renderPersonRow(); renderHero(); renderSearchIfActive();
       toast('Redemption removed');
     }
   });
@@ -1695,6 +1757,141 @@ document.getElementById('show-all-redemptions').onclick = (e) => {
   e.target.textContent = redemptionsLimit > 50 ? 'Show less' : 'Show all';
   renderRedemptionsList();
 };
+
+/* ---------- Search ---------- */
+let searchQuery = '';
+
+function renderSearchIfActive() {
+  if (!document.getElementById('tab-search').classList.contains('active')) return;
+  // Defer past the 0.55s flash animation so the tapped button gets its feedback before being replaced.
+  setTimeout(renderSearch, 650);
+}
+
+function renderSearch() {
+  const cont = document.getElementById('search-results');
+  cont.innerHTML = '';
+  const q = (searchQuery || '').trim().toLowerCase();
+  const matches = (s) => !q || (s || '').toLowerCase().includes(q);
+
+  const p = activePerson();
+  const balance = p ? balanceForPerson(p.id) : 0;
+
+  // Activities grouped by category. A category-name match expands the whole category.
+  const actBuckets = state.categories.map(cat => {
+    const all = state.activities.filter(a => a.categoryId === cat.id);
+    const items = matches(cat.name) ? all : all.filter(a => matches(a.name));
+    return { cat, items };
+  }).filter(b => b.items.length > 0);
+
+  const actOrphans = state.activities.filter(a =>
+    !state.categories.find(c => c.id === a.categoryId) && matches(a.name)
+  );
+  if (actOrphans.length) {
+    actBuckets.push({ cat: { id: '__none', name: 'Uncategorized', weight: 1, color: '#94a3b8' }, items: actOrphans });
+  }
+
+  // Rewards grouped by reward-category.
+  const rcats = Array.isArray(state.rewardCategories) ? state.rewardCategories : [];
+  const rewBuckets = rcats.map(cat => {
+    const all = state.rewards.filter(r => r.categoryId === cat.id);
+    const items = matches(cat.name) ? all : all.filter(r => matches(r.name));
+    return { cat, items };
+  }).filter(b => b.items.length > 0);
+
+  const rewOrphans = state.rewards.filter(r =>
+    (!r.categoryId || !rcats.find(c => c.id === r.categoryId)) && matches(r.name)
+  );
+  if (rewOrphans.length) {
+    rewBuckets.push({ cat: { id: '__none', name: 'Uncategorized', weight: 1, color: '#94a3b8' }, items: rewOrphans });
+  }
+
+  const actCount = actBuckets.reduce((s, b) => s + b.items.length, 0);
+  const rewCount = rewBuckets.reduce((s, b) => s + b.items.length, 0);
+  const total = actCount + rewCount;
+
+  if (total === 0) {
+    cont.innerHTML = `<div class="empty-state"><div class="ico">🔍</div>${q ? `No matches for &ldquo;${escapeHtml(searchQuery)}&rdquo;` : 'Nothing to search yet — add some activities or rewards in Settings.'}</div>`;
+    return;
+  }
+
+  if (q) {
+    const meta = document.createElement('div');
+    meta.className = 'search-meta';
+    meta.textContent = `${total} match${total === 1 ? '' : 'es'} · ${actCount} activit${actCount === 1 ? 'y' : 'ies'}, ${rewCount} reward${rewCount === 1 ? '' : 's'}`;
+    cont.appendChild(meta);
+  }
+
+  if (actBuckets.length) {
+    const head = document.createElement('div');
+    head.className = 'section-title';
+    head.innerHTML = `Activities <span class="right">Tap to log →</span>`;
+    cont.appendChild(head);
+    actBuckets.forEach(({ cat, items }) => {
+      const block = document.createElement('div');
+      block.className = 'category-block';
+      block.innerHTML = `
+        <div class="category-header">
+          <span class="category-dot" style="background:${cat.color}"></span>
+          <span class="category-name">${escapeHtml(cat.name)}</span>
+          <span class="category-weight">×${cat.weight}</span>
+        </div>
+        <div class="activity-grid"></div>`;
+      const grid = block.querySelector('.activity-grid');
+      items.forEach(a => {
+        const pts = activityPoints(a);
+        const btn = document.createElement('button');
+        btn.className = 'activity-btn';
+        btn.style.setProperty('--cat-color', cat.color);
+        btn.innerHTML = `
+          <div class="row-top">
+            <span class="a-emoji">${a.emoji || '✨'}</span>
+            <span class="a-pts">+${pts}</span>
+          </div>
+          <div class="a-name">${escapeHtml(a.name)}</div>`;
+        btn.onclick = () => logActivity(a, btn);
+        grid.appendChild(btn);
+      });
+      cont.appendChild(block);
+    });
+  }
+
+  if (rewBuckets.length) {
+    const head = document.createElement('div');
+    head.className = 'section-title';
+    head.innerHTML = `Rewards <span class="right">Tap to redeem →</span>`;
+    cont.appendChild(head);
+    rewBuckets.forEach(({ cat, items }) => {
+      const block = document.createElement('div');
+      block.className = 'category-block';
+      block.innerHTML = `
+        <div class="category-header">
+          <span class="category-dot" style="background:${cat.color}"></span>
+          <span class="category-name">${escapeHtml(cat.name)}</span>
+          <span class="category-weight">×${cat.weight}</span>
+        </div>
+        <div class="activity-grid"></div>`;
+      const grid = block.querySelector('.activity-grid');
+      [...items].sort((a, b) => rewardCost(a) - rewardCost(b)).forEach(r => {
+        const actualCost = rewardCost(r);
+        const affordable = p && balance >= actualCost;
+        const btn = document.createElement('button');
+        btn.className = 'activity-btn reward-btn' + (affordable ? '' : ' locked');
+        btn.style.setProperty('--cat-color', cat.color);
+        const shortfall = actualCost - balance;
+        btn.innerHTML = `
+          <div class="row-top">
+            <span class="a-emoji">${r.emoji || '🎁'}</span>
+            <span class="a-pts">−${actualCost}</span>
+          </div>
+          <div class="a-name">${escapeHtml(r.name)}</div>
+          ${!affordable && p ? `<div class="locked-msg">Need ${shortfall} more</div>` : ''}`;
+        btn.onclick = () => redeemReward(r, btn);
+        grid.appendChild(btn);
+      });
+      cont.appendChild(block);
+    });
+  }
+}
 
 /* ---------- Dashboard ---------- */
 let chartsInitted = false;
@@ -2845,10 +3042,30 @@ document.querySelectorAll('nav.bottom-nav button').forEach(b => {
     renderCommentBar();
     if (t === 'dashboard') renderDashboard();
     if (t === 'rewards') renderRewardsTab();
+    if (t === 'search') renderSearch();
     if (t === 'settings') renderSettings();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 });
+
+/* Search input */
+{
+  const input = document.getElementById('search-input');
+  const clear = document.getElementById('search-clear');
+  const syncClear = () => clear.classList.toggle('show', !!input.value);
+  input.addEventListener('input', () => {
+    searchQuery = input.value;
+    syncClear();
+    renderSearch();
+  });
+  clear.onclick = () => {
+    input.value = '';
+    searchQuery = '';
+    syncClear();
+    renderSearch();
+    input.focus();
+  };
+}
 
 document.querySelectorAll('#period-seg button').forEach(b => {
   b.onclick = () => {
@@ -2946,8 +3163,8 @@ function copyText(text) {
 }
 
 /* ---------- Comments / feedback backlog ---------- */
-const PAGE_LABELS = { log: 'Log', dashboard: 'Dashboard', rewards: 'Rewards', settings: 'Settings' };
-const PAGE_ORDER = ['log', 'dashboard', 'rewards', 'settings'];
+const PAGE_LABELS = { log: 'Log', dashboard: 'Dashboard', rewards: 'Rewards', search: 'Search', settings: 'Settings' };
+const PAGE_ORDER = ['log', 'dashboard', 'rewards', 'search', 'settings'];
 let currentPage = 'log';
 let commentFilter = 'open';   // 'open' | 'all'
 
@@ -3130,6 +3347,7 @@ function renderAll() {
   renderLog();
   if (document.getElementById('tab-dashboard').classList.contains('active')) renderDashboard();
   if (document.getElementById('tab-rewards').classList.contains('active')) renderRewardsTab();
+  if (document.getElementById('tab-search').classList.contains('active')) renderSearch();
   if (document.getElementById('tab-settings').classList.contains('active')) renderSettings();
   renderCommentBar();
   // If the comment drawer is open, keep its list in sync (e.g. after a cloud pull)
