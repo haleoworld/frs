@@ -61,16 +61,19 @@ Credentials (`gistToken`/`gistId`) are set as part of the chosen action, not bef
 
 ```js
 {
-  version: 5,
+  version: 6,
   settings: { theme, activePersonId, lastSaved, lastSyncedAt, gistId, gistToken },
-  people:           [{ id, name, color, emoji }],
-  categories:       [{ id, name, weight, color }],              // activity categories
-  activities:       [{ id, name, categoryId, basePoints, emoji }],
-  rewardCategories: [{ id, name, weight, color }],              // multiplier on reward costs
-  rewards:          [{ id, name, cost, categoryId, emoji, color }],
+  people:                [{ id, name, color, emoji }],
+  categories:            [{ id, name, weight, color }],              // activity categories
+  activities:            [{ id, name, categoryId, basePoints, emoji }],
+  rewardCategories:      [{ id, name, weight, color }],              // multiplier on reward costs
+  rewards:               [{ id, name, cost, categoryId, emoji, color }],
+  misbehaviorCategories: [{ id, name, weight, color }],              // multiplier on deduction magnitudes — bigger weight = harder hit
+  misbehaviors:          [{ id, name, categoryId, basePoints, emoji }],
   records: [
-    { id, personId, activityId, timestamp, dateISO, points, kind: 'earn' },
-    { id, personId, rewardId,   timestamp, dateISO, points, kind: 'redeem' }
+    { id, personId, activityId,    timestamp, dateISO, points, kind: 'earn' },
+    { id, personId, rewardId,      timestamp, dateISO, points, kind: 'redeem' },
+    { id, personId, misbehaviorId, timestamp, dateISO, points, kind: 'deduct' }   // points is POSITIVE magnitude; balance subtracts
   ],
   comments: [  // in-app feedback backlog, one thread per page
     { id, page: 'log'|'dashboard'|'rewards'|'settings', text, done, createdAt, completedAt }
@@ -81,23 +84,30 @@ Credentials (`gistToken`/`gistId`) are set as part of the chosen action, not bef
 **Cost / points formulas (single source of truth):**
 - Activity earn: `activityPoints(a) = Math.round(a.basePoints * activityCategory.weight)`
 - Reward redemption: `rewardCost(r) = Math.round(r.cost * rewardCategory.weight)` — weight <1 encourages, >1 discourages.
-- Both are computed at log/redeem time and frozen on the record (`record.points`). Changing a category weight later does NOT mutate history.
-- Balance = sum(earn points) − sum(redeem points).
+- Misbehavior deduction: `misbehaviorPoints(m) = Math.round(m.basePoints * misbehaviorCategory.weight)` — returns POSITIVE magnitude; balance subtracts it. Bigger weight = harder hit (Disrespect ×3 stings hardest, mirrors Bonus ×3 on the earn side).
+- All three are computed at log/redeem/deduct time and frozen on the record (`record.points`). Changing a category weight later does NOT mutate history.
+- Balance = sum(earn points) − sum(redeem points) − sum(deduct points). **Can go negative** — by design, deductions always apply (no floor at 0).
+- Streak = consecutive days with `(earn − deduct) > 0`. Pure-deduct days and break-even days reset the streak.
 
-**Migration:** `migrate(data)` in `load()` chains v1 → v2 → v3 → v4 → v5.
+**Migration:** `migrate(data)` in `load()` chains v1 → v2 → v3 → v4 → v5 → v6.
 - v1→v2: stamp `kind:'earn'` on records, seed `rewards` with defaults.
 - v2→v3: add `rewardCategories` (6 defaults). Existing rewards keep their `cost` field; without a `categoryId` they're treated as weight 1 (no behavior change). New rewards via the modal get assigned a `categoryId`.
 - v3→v4: add empty `comments` array.
 - v4→v5: sync backend moved to GitHub Gist — `delete settings.syncUrl`, add `settings.gistId` + `settings.gistToken` (both default `''`).
+- v5→v6: introduce misbehaviors — seed `misbehaviorCategories` (6 defaults, stable `mb-*` ids) and `misbehaviors` (10 defaults). Existing records need no rewrite; new `kind: 'deduct'` records appear going forward.
 - **MUST be called on remote payloads** before adopting — both `pullFromCloud()` and the *Save & test* handler do this. Skipping migration on remote data caused a real bug on 2026-05-17: cloud data pushed by a v1 client had no `rewards` array, so after adoption `state.rewards.length` threw and the *Add reward* button silently failed.
+
+**Forward-compat hazard for v6:** an OLD v5 client pulling v6 cloud data would see `kind: 'deduct'` records and `isEarn()` (old version: `r.kind !== 'redeem'`) would mistakenly count them as earns. After deploying v6, refresh ALL of Jerry's devices on next use — don't leave a v5 tab open mid-transition. The v6 `isEarn` correctly excludes both `'redeem'` and `'deduct'`.
 
 ## Default seed (see `defaultData()` near top of `<script>`)
 
 **Activity categories** with weights: Hygiene ×1, Learning ×2, Chores ×1.5, Kindness ×2, Self-care ×1, Bonus ×3. 23 starter activities.
 
-**Reward categories** with weights — deliberately nudge behavior: Bonding & rituals ×0.8, Social & friendships ×0.9, Skills & creativity ×0.9, Experiences ×1.0, Privileges ×1.0, Materials ×1.5. **20 default rewards** (EQ/experience-focused; explicitly NO material defaults — Materials category exists so the user can add their own and have them be naturally more expensive). Base costs span 15–500 pts; weighted actuals span 12 pts (bedtime story) to 500 pts (zoo day).
+**Reward categories** with weights — deliberately nudge behavior: Bonding & rituals ×0.8, Social & friendships ×0.9, Skills & creativity ×0.9, Experiences ×1.0, Privileges ×1.0, Materials ×1.5. **21 default rewards** (EQ/experience-focused; explicitly NO material defaults — Materials category exists so the user can add their own and have them be naturally more expensive). Base costs span 15–500 pts; weighted actuals span 12 pts (bedtime story) to 500 pts (zoo day). Includes "Make ice cream with daddy" (80 base, Bonding ×0.8 = 64 actual) — a Jerry-family-specific reward kept in defaults.
 
-Two placeholder kids ("Child 1", "Child 2"). Settings → Rewards has a **"Load 20 suggested rewards"** button that swaps the live rewards list with `defaultRewards()` so existing users (whose cloud may still have the older 10-reward seed, or v2 uncategorized rewards) can adopt the new defaults in one click.
+**Misbehavior categories** with weights — mirrors the activity-side value system (the same nudge principle, applied to deductions): Disrespect ×3, Unkindness ×2, Avoiding learning ×2, Avoiding chores ×1.5, Hygiene neglect ×1, Self-care neglect ×1. **10 default misbehaviors** spanning all six categories (e.g. "Lied to parent" base 5 in Disrespect ×3 = −15; "Refused to brush teeth" base 3 in Hygiene neglect ×1 = −3). Category IDs are stable `mb-*` strings so migration adoption stays clean. Behavior intent: heavier deductions for the moral violations Jerry most wants to discourage (mirror image of Kindness/Bonus on the earn side).
+
+Two placeholder kids ("Child 1", "Child 2"). Settings → Rewards has a **"Load 21 suggested rewards"** button that swaps the live rewards list with `defaultRewards()` so existing users (whose cloud may still have the older 10-reward seed, or v2 uncategorized rewards) can adopt the new defaults in one click.
 
 ## Code layout inside `<script>`
 
@@ -106,19 +116,20 @@ Sections are marked with `/* ---------- Name ---------- */` banners. Skim these 
 | Section | What lives there |
 |---|---|
 | Storage | `load()`, `save()`, `saveLocal()`, `STORAGE_KEY`, `migrate()` |
-| Utilities | `todayKey`, `startOfWeek`, `startOfMonth`, `periodCutoff`, `activityPoints`, `personById`, `categoryOf`, `isEarn`, `isRedeem` |
+| Utilities | `todayKey`, `startOfWeek`, `startOfMonth`, `periodCutoff`, `activityPoints`, `rewardCost`, `misbehaviorPoints`, `misbehaviorCategoryOf`, `personById`, `categoryOf`, `isEarn`, `isRedeem`, `isDeduct` |
 | Theme | `applyTheme()` — `light` / `dark` / `auto` |
 | UI: Person row & Hero | `renderPersonRow`, `renderHero`, `activePerson` |
 | Activity grid | `renderActivityList` — renders by category |
-| Logging | `logActivity`, `renderRecent` — confetti + undo toast; recent list shows both earns and redeems |
-| Totals & filters | `earnedForPerson`, `redeemedForPerson`, `balanceForPerson`, `totalForPerson` (back-compat) |
+| Misbehavior grid | `renderMisbehaviorList` — collapsed Behavior section at bottom of Log tab; red `.deduct-btn` styling; `#behavior-toggle` chevron expands the list |
+| Logging | `logActivity`, `logMisbehavior` (confirm dialog + undo toast — no confetti), `renderRecent` — recent list shows earns / redeems / deducts; deducts display with red `−N` |
+| Totals & filters | `earnedForPerson`, `redeemedForPerson`, `deductedForPerson`, `balanceForPerson` (earn − redeem − deduct, can be negative), `totalForPerson` (back-compat — periods other than 'all' return earn-only) |
 | Rewards tab | `renderRewardsTab`, `renderRewardsPersonRow`, `renderRewardsHero`, `renderRewardsGrid`, `redeemReward`, `renderRedemptionsList` |
 | Dashboard | `renderDashboard`, `renderStatsGrid`, `computeStreak`, `renderTopActivities`, `filteredEarnRecords` |
 | Charts | `renderCharts` + 5 individual chart renderers (Chart.js); trend charts filter to `isEarn` records |
-| Settings | `renderPeopleList`, `renderCategoriesList`, `renderActivitiesList`, `renderRewardCategoriesList`, `renderRewardsSettingsList`, `renderSyncCard` |
+| Settings | `renderPeopleList`, `renderCategoriesList`, `renderActivitiesList`, `renderRewardCategoriesList`, `renderRewardsSettingsList`, `renderMisbehaviorCategoriesList`, `renderMisbehaviorsSettingsList`, `renderSyncCard` |
 | Cloud sync (GitHub Gist) | `pushToCloud`, `pullFromCloud`, `queuePush`, `setSyncStatus`, `syncPayload`, `gistHeaders`, `extractGistId`, `GIST_API`, `GIST_FILENAME` |
 | Comments / feedback | `renderCommentBar`, `openCommentDrawer`, `renderCommentList`, `postComment`, `toggleComment`, `deleteComment`, `commentsAsMarkdown`, `copyAllComments`; `currentPage` + `commentFilter` globals; `adjustDockPadding` |
-| Modals | `openPersonModal`, `openCategoryModal`, `openActivityModal`, `openRewardCategoryModal`, `openRewardModal` |
+| Modals | `openPersonModal`, `openCategoryModal`, `openActivityModal`, `openRewardCategoryModal`, `openRewardModal`, `openMisbehaviorCategoryModal`, `openMisbehaviorModal` |
 | Export / Import | `btn-export` / `btn-import` handlers |
 | Tabs / theme toggle / toast / confetti / helpers | self-explanatory at end |
 
@@ -138,17 +149,21 @@ Sections are marked with `/* ---------- Name ---------- */` banners. Skim these 
 | Add a default activity | `defaultData()` → `activities` array |
 | Add a default reward | `defaultRewards()` (called from `defaultData()`) |
 | Add a default reward category | `defaultRewardCategories()` |
+| Add a default misbehavior | `defaultMisbehaviors()` |
+| Add a default misbehavior category | `defaultMisbehaviorCategories()` (stable `mb-*` ids) |
 | Rename a category | Settings tab in the app (do NOT edit `defaultData` if a user already has data) |
 | Add a new chart | Add `<canvas>` in dashboard tab + a `renderChart<Name>()` function called from `renderCharts()` |
-| Change point math | `activityPoints()` for earnings; `rewardCost()` for redemptions — these are the single sources of truth |
-| Change balance math | `balanceForPerson()` / `earnedForPerson()` / `redeemedForPerson()` — only place to edit |
+| Change point math | `activityPoints()` for earnings; `rewardCost()` for redemptions; `misbehaviorPoints()` for deductions — single sources of truth |
+| Change balance math | `balanceForPerson()` / `earnedForPerson()` / `redeemedForPerson()` / `deductedForPerson()` — only place to edit |
 | Change storage location | `STORAGE_KEY` constant |
 | Restyle | CSS variables in `:root` and `[data-theme="dark"]` at top of `<style>` |
 | Bump schema | Increase `version` in `defaultData()`, add a migration block in `migrate()` |
 
 ## Tab layout
 
-Four tabs in the bottom nav: **Log** (earn), **Dashboard** (charts + stats), **Rewards** (redeem), **Settings** (CRUD + sync). Tab sections are `<section class="tab" id="tab-{name}">` and shown/hidden by the bottom-nav click handler. When adding a new tab, also update `renderAll()` so all visible tabs re-render after a state change.
+Tabs in the bottom nav: **Log** (earn + Behavior section for deductions), **Dashboard** (charts + stats), **Rewards** (redeem), **Search**, **Settings** (CRUD + sync). Tab sections are `<section class="tab" id="tab-{name}">` and shown/hidden by the bottom-nav click handler. When adding a new tab, also update `renderAll()` so all visible tabs re-render after a state change.
+
+**Log tab structure:** person row → hero card → activity grid (by category) → recent list → collapsed "Behavior (deductions)" section. The Behavior toggle (`#behavior-toggle`) shows/hides `#misbehavior-list`; default state is collapsed so positive actions stay front-and-center.
 
 The bottom nav and the comment bar live together inside a single fixed `.bottom-dock`. The dock's height is measured at runtime by `adjustDockPadding()` (called on boot + resize) which sets `body { padding-bottom }` so content never hides behind it — don't hardcode that padding.
 

@@ -283,6 +283,22 @@
   .activity-btn.reward-btn .a-pts { color: var(--danger); background: var(--danger-soft); }
   .activity-btn.reward-btn:not(.locked) { border-color: var(--cat-color, var(--primary)); }
 
+  /* Behavior (deduction) buttons — red accent regardless of category color */
+  .activity-btn.deduct-btn .a-pts { color: var(--danger); background: var(--danger-soft); }
+  .activity-btn.deduct-btn:hover { border-color: var(--danger); }
+  .behavior-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: none; border: none; padding: 0;
+    color: var(--text-muted); font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .behavior-toggle .chev {
+    display: inline-block; transition: transform .15s;
+    font-size: 10px; color: var(--text-dim);
+  }
+  .behavior-toggle.open .chev { transform: rotate(90deg); }
+  .behavior-toggle .muted { color: var(--text-dim); font-weight: 500; font-size: 11px; }
+
   /* Recent activity list */
   .recent-list {
     background: var(--bg-elevated);
@@ -896,6 +912,13 @@
 
     <div class="section-title">Recent <span class="right"><button class="filter-pill" id="show-all-recent">Show all</button></span></div>
     <div id="recent-list"></div>
+
+    <div class="section-title" style="margin-top:24px;">
+      <button class="behavior-toggle" id="behavior-toggle">
+        <span class="chev">▸</span> Behavior <span class="muted">(deductions)</span>
+      </button>
+    </div>
+    <div id="misbehavior-list" style="display:none;"></div>
   </section>
 
   <!-- DASHBOARD TAB -->
@@ -1002,9 +1025,22 @@
       <h3>Rewards <button class="add" data-action="add-reward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="rewards-settings-list"></div>
       <div style="padding: 4px 16px 14px;">
-        <button class="btn btn-secondary" id="btn-reset-rewards" style="font-size: 12px;">↻ Load 20 suggested rewards</button>
+        <button class="btn btn-secondary" id="btn-reset-rewards" style="font-size: 12px;">↻ Load 21 suggested rewards</button>
         <p style="margin: 8px 0 0; font-size: 11px; color: var(--text-dim);">Replaces your current reward list with the suggested defaults (bonding · social · creativity · experiences). Your past redemptions stay intact.</p>
       </div>
+    </div>
+
+    <div class="settings-card">
+      <h3>Misbehavior categories <button class="add" data-action="add-misbehavior-category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
+      <div class="settings-body" id="misbehavior-categories-list"></div>
+      <div style="padding: 4px 16px 14px;">
+        <p style="margin: 0; font-size: 11px; color: var(--text-dim);">Weight is a deduction multiplier. Higher = harder hit (mirrors the activity-side value system: heavier deductions for the misbehaviors you most want to discourage).</p>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h3>Behavior items <button class="add" data-action="add-misbehavior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
+      <div class="settings-body" id="misbehaviors-list"></div>
     </div>
 
     <div class="settings-card">
@@ -1176,7 +1212,7 @@ function defaultRewardCategories() {
 }
 
 function defaultRewards() {
-  // 20 rewards focused on bonding, EQ, social skills, creativity, and experiences —
+  // 21 rewards focused on bonding, EQ, social skills, creativity, and experiences —
   // not on stuff. The `cost` field is the BASE cost; the actual cost paid at redemption
   // is base × category.weight (see rewardCost()). Categories are stable string IDs so
   // they survive migration cleanly.
@@ -1188,6 +1224,7 @@ function defaultRewards() {
     { id: uid(), name: 'Family game night',           cost: 40,  emoji: '🎲', color: '#ec4899', categoryId: RC.bonding },
     { id: uid(), name: 'Stargazing night',            cost: 60,  emoji: '✨', color: '#8b5cf6', categoryId: RC.bonding },
     { id: uid(), name: 'Family picnic outing',        cost: 80,  emoji: '🧺', color: '#10b981', categoryId: RC.bonding },
+    { id: uid(), name: 'Make ice cream with daddy',   cost: 80,  emoji: '🍦', color: '#ec4899', categoryId: RC.bonding },
     // Social & friendships
     { id: uid(), name: 'Drawing/craft with a friend', cost: 80,  emoji: '🎨', color: '#ec4899', categoryId: RC.social },
     { id: uid(), name: 'Friend over for playdate',    cost: 100, emoji: '🤝', color: '#14b8a6', categoryId: RC.social },
@@ -1210,10 +1247,52 @@ function defaultRewards() {
   ];
 }
 
+function defaultMisbehaviorCategories() {
+  // Mirrors the value system encoded in activity categories: bigger weight = harder hit.
+  // Disrespect/Unkindness deductions sting the most (matching how heavily we reward
+  // their opposites). Hygiene/Self-care lapses are small nudges, not punishments.
+  return [
+    { id: 'mb-disrespect',       name: 'Disrespect',         weight: 3,   color: '#ef4444' },
+    { id: 'mb-unkindness',       name: 'Unkindness',         weight: 2,   color: '#f59e0b' },
+    { id: 'mb-learning-avoid',   name: 'Avoiding learning',  weight: 2,   color: '#8b5cf6' },
+    { id: 'mb-chore-avoid',      name: 'Avoiding chores',    weight: 1.5, color: '#10b981' },
+    { id: 'mb-hygiene-neglect',  name: 'Hygiene neglect',    weight: 1,   color: '#06b6d4' },
+    { id: 'mb-selfcare-neglect', name: 'Self-care neglect',  weight: 1,   color: '#ec4899' },
+  ];
+}
+
+function defaultMisbehaviors() {
+  // basePoints are positive; misbehaviorPoints() applies the negative sign at log time.
+  // Actual deduction = -round(basePoints × category.weight). Stable string IDs for categories
+  // so users adopting newer defaults via migration don't break references.
+  const MC = {
+    disrespect: 'mb-disrespect', unkindness: 'mb-unkindness', learning: 'mb-learning-avoid',
+    chore: 'mb-chore-avoid', hygiene: 'mb-hygiene-neglect', selfcare: 'mb-selfcare-neglect',
+  };
+  return [
+    // Disrespect (×3)
+    { id: uid(), name: 'Lied to parent',           basePoints: 5, emoji: '🤥', categoryId: MC.disrespect },
+    { id: uid(), name: 'Yelled at parent',         basePoints: 5, emoji: '📢', categoryId: MC.disrespect },
+    { id: uid(), name: 'Refused to listen',        basePoints: 4, emoji: '🙉', categoryId: MC.disrespect },
+    // Unkindness (×2)
+    { id: uid(), name: 'Tantrum / meltdown',       basePoints: 5, emoji: '😤', categoryId: MC.unkindness },
+    { id: uid(), name: 'Hit / pushed sibling',     basePoints: 5, emoji: '🤜', categoryId: MC.unkindness },
+    { id: uid(), name: 'Mean words',               basePoints: 4, emoji: '😠', categoryId: MC.unkindness },
+    // Avoiding learning (×2)
+    { id: uid(), name: 'Refused homework',         basePoints: 5, emoji: '📕', categoryId: MC.learning },
+    // Avoiding chores (×1.5)
+    { id: uid(), name: "Wouldn't help when asked", basePoints: 3, emoji: '🙅', categoryId: MC.chore },
+    // Hygiene neglect (×1)
+    { id: uid(), name: 'Refused to brush teeth',   basePoints: 3, emoji: '🦷', categoryId: MC.hygiene },
+    // Self-care neglect (×1)
+    { id: uid(), name: 'Picky / refused food',     basePoints: 3, emoji: '🍽️', categoryId: MC.selfcare },
+  ];
+}
+
 function defaultData() {
   const catH = uid(), catL = uid(), catC = uid(), catK = uid(), catS = uid(), catB = uid();
   return {
-    version: 5,
+    version: 6,
     settings: { theme: 'auto', activePersonId: null, lastSaved: null, lastSyncedAt: null, gistId: '', gistToken: '' },
     people: [
       { id: uid(), name: 'Child 1', color: PERSON_COLORS[0], emoji: PERSON_EMOJIS[0] },
@@ -1260,6 +1339,8 @@ function defaultData() {
     ],
     rewardCategories: defaultRewardCategories(),
     rewards: defaultRewards(),
+    misbehaviorCategories: defaultMisbehaviorCategories(),
+    misbehaviors: defaultMisbehaviors(),
     records: [],
     comments: [],   // { id, page, text, done, createdAt, completedAt } — in-app feedback backlog per page
   };
@@ -1298,9 +1379,22 @@ function migrate(data) {
     }
     data.version = 5;
   }
+  if (data.version < 6) {
+    // v5 → v6: introduce misbehaviors (category-weighted point deductions). Records gain a
+    // new `kind: 'deduct'` possibility; existing earn/redeem records need no rewrite.
+    if (!Array.isArray(data.misbehaviorCategories) || data.misbehaviorCategories.length === 0) {
+      data.misbehaviorCategories = defaultMisbehaviorCategories();
+    }
+    if (!Array.isArray(data.misbehaviors) || data.misbehaviors.length === 0) {
+      data.misbehaviors = defaultMisbehaviors();
+    }
+    data.version = 6;
+  }
   // Always guarantee these arrays exist after migration
   if (!Array.isArray(data.rewards)) data.rewards = [];
   if (!Array.isArray(data.rewardCategories)) data.rewardCategories = defaultRewardCategories();
+  if (!Array.isArray(data.misbehaviorCategories)) data.misbehaviorCategories = defaultMisbehaviorCategories();
+  if (!Array.isArray(data.misbehaviors)) data.misbehaviors = [];
   if (!Array.isArray(data.records)) data.records = [];
   if (!Array.isArray(data.comments)) data.comments = [];
   return data;
@@ -1373,6 +1467,17 @@ function rewardCost(reward) {
   if (!reward) return 0;
   const cat = rewardCategoryOf(reward);
   return Math.round((reward.cost || 0) * (cat ? cat.weight : 1));
+}
+function misbehaviorCategoryOf(m) {
+  if (!m || !m.categoryId || !Array.isArray(state.misbehaviorCategories)) return null;
+  return state.misbehaviorCategories.find(c => c.id === m.categoryId) || null;
+}
+function misbehaviorPoints(m) {
+  // POSITIVE deduction magnitude; the sign is applied by balance math (subtracted),
+  // matching how rewardCost works — records store positive numbers, balance subtracts them.
+  if (!m) return 0;
+  const cat = misbehaviorCategoryOf(m);
+  return Math.round((m.basePoints || 0) * (cat ? cat.weight : 1));
 }
 function personById(id) { return state.people.find(p => p.id === id); }
 
@@ -1499,6 +1604,77 @@ function logActivity(activity, btn) {
   });
 }
 
+function renderMisbehaviorList() {
+  const cont = document.getElementById('misbehavior-list');
+  if (!cont) return;
+  cont.innerHTML = '';
+  const items = Array.isArray(state.misbehaviors) ? state.misbehaviors : [];
+  if (items.length === 0) {
+    cont.innerHTML = '<div class="empty-state"><div class="ico">🟡</div>No behavior items. Add some in Settings.</div>';
+    return;
+  }
+  (state.misbehaviorCategories || []).forEach(cat => {
+    const its = items.filter(m => m.categoryId === cat.id);
+    if (its.length === 0) return;
+    const block = document.createElement('div');
+    block.className = 'category-block';
+    block.innerHTML = `
+      <div class="category-header">
+        <span class="category-dot" style="background:${cat.color}"></span>
+        <span class="category-name">${escapeHtml(cat.name)}</span>
+        <span class="category-weight">×${cat.weight}</span>
+      </div>
+      <div class="activity-grid"></div>`;
+    const grid = block.querySelector('.activity-grid');
+    its.forEach(m => {
+      const pts = misbehaviorPoints(m);
+      const btn = document.createElement('button');
+      btn.className = 'activity-btn deduct-btn';
+      btn.style.setProperty('--cat-color', cat.color);
+      btn.innerHTML = `
+        <div class="row-top">
+          <span class="a-emoji">${m.emoji || '⚠️'}</span>
+          <span class="a-pts">−${pts}</span>
+        </div>
+        <div class="a-name">${escapeHtml(m.name)}</div>`;
+      btn.onclick = () => logMisbehavior(m, btn);
+      grid.appendChild(btn);
+    });
+    cont.appendChild(block);
+  });
+}
+
+function logMisbehavior(misbehavior, btn) {
+  const p = activePerson();
+  if (!p) { toast('Pick a person first'); return; }
+  const pts = misbehaviorPoints(misbehavior);
+  if (pts <= 0) { toast('This behavior has 0 deduction — edit it in Settings'); return; }
+  if (!confirm(`Deduct −${pts} pts from ${p.name} for "${misbehavior.name}"?`)) return;
+  const rec = {
+    id: uid(),
+    personId: p.id,
+    misbehaviorId: misbehavior.id,
+    timestamp: Date.now(),
+    dateISO: todayKey(),
+    points: pts,  // positive magnitude; balance math subtracts it
+    kind: 'deduct',
+  };
+  state.records.push(rec);
+  save();
+  renderPersonRow();
+  renderHero();
+  renderRecent();
+  renderSearchIfActive();
+  if (btn) {
+    btn.classList.remove('flash');
+    void btn.offsetWidth;
+    btn.classList.add('flash');
+  }
+  toast(`−${pts} for ${p.name} · ${misbehavior.name}`, {
+    undo: () => { state.records = state.records.filter(r => r.id !== rec.id); save(); renderPersonRow(); renderHero(); renderRecent(); renderSearchIfActive(); toast('Removed'); }
+  });
+}
+
 function renderRecent() {
   const cont = document.getElementById('recent-list');
   cont.innerHTML = '';
@@ -1512,15 +1688,25 @@ function renderRecent() {
   records.forEach(r => {
     const p = personById(r.personId);
     const isRed = isRedeem(r);
-    const a = isRed ? null : state.activities.find(x => x.id === r.activityId);
-    const reward = isRed ? state.rewards.find(x => x.id === r.rewardId) : null;
-    const cat = a ? state.categories.find(c => c.id === a.categoryId) : null;
-    const name = isRed
-      ? (reward ? reward.name : 'Removed reward')
-      : (a ? a.name : 'Removed activity');
-    const meta = isRed
-      ? `${p ? escapeHtml(p.name) : 'Unknown'} · Redeemed · ${formatRelTime(r.timestamp)}`
-      : `${p ? escapeHtml(p.name) : 'Unknown'} · ${cat ? escapeHtml(cat.name) : ''} · ${formatRelTime(r.timestamp)}`;
+    const isDed = isDeduct(r);
+    const isNeg = isRed || isDed;  // both show as red −N
+    let name, metaMid;
+    if (isRed) {
+      const reward = state.rewards.find(x => x.id === r.rewardId);
+      name = reward ? reward.name : 'Removed reward';
+      metaMid = 'Redeemed';
+    } else if (isDed) {
+      const m = (state.misbehaviors || []).find(x => x.id === r.misbehaviorId);
+      const mcat = m ? (state.misbehaviorCategories || []).find(c => c.id === m.categoryId) : null;
+      name = m ? m.name : 'Removed behavior';
+      metaMid = mcat ? mcat.name : 'Deduction';
+    } else {
+      const a = state.activities.find(x => x.id === r.activityId);
+      const cat = a ? state.categories.find(c => c.id === a.categoryId) : null;
+      name = a ? a.name : 'Removed activity';
+      metaMid = cat ? cat.name : '';
+    }
+    const meta = `${p ? escapeHtml(p.name) : 'Unknown'} · ${escapeHtml(metaMid)} · ${formatRelTime(r.timestamp)}`;
     const row = document.createElement('div');
     row.className = 'recent-row';
     row.innerHTML = `
@@ -1529,10 +1715,13 @@ function renderRecent() {
         <div class="rr-name">${escapeHtml(name)}</div>
         <div class="rr-meta">${meta}</div>
       </div>
-      <span class="rr-pts" ${isRed ? 'style="color:var(--danger);background:var(--danger-soft)"' : ''}>${isRed ? '−' : '+'}${r.points}</span>
+      <span class="rr-pts" ${isNeg ? 'style="color:var(--danger);background:var(--danger-soft)"' : ''}>${isNeg ? '−' : '+'}${r.points}</span>
       <button class="del" title="Remove"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14M10 11v6M14 11v6"/></svg></button>`;
     row.querySelector('.del').onclick = () => {
-      if (confirm(isRed ? 'Remove this redemption? Points will be returned.' : 'Remove this entry?')) {
+      const prompt = isRed ? 'Remove this redemption? Points will be returned.'
+                  : isDed ? 'Remove this deduction? Points will be returned.'
+                  : 'Remove this entry?';
+      if (confirm(prompt)) {
         state.records = state.records.filter(x => x.id !== r.id);
         save();
         renderAll();
@@ -1548,9 +1737,19 @@ document.getElementById('show-all-recent').onclick = (e) => {
   renderRecent();
 };
 
+document.getElementById('behavior-toggle').onclick = (e) => {
+  const list = document.getElementById('misbehavior-list');
+  const btn = document.getElementById('behavior-toggle');
+  const open = list.style.display !== 'none';
+  list.style.display = open ? 'none' : 'block';
+  btn.classList.toggle('open', !open);
+};
+
 /* ---------- Totals & filters ---------- */
-function isEarn(r)   { return r.kind !== 'redeem'; }   // default to earn for legacy records
+function isDeduct(r) { return r.kind === 'deduct'; }
 function isRedeem(r) { return r.kind === 'redeem'; }
+// Legacy records (no kind) default to earn. Deduct and redeem are explicit.
+function isEarn(r)   { return r.kind !== 'redeem' && r.kind !== 'deduct'; }
 
 function earnedForPerson(personId, period) {
   const cutoff = periodCutoff(period);
@@ -1564,8 +1763,15 @@ function redeemedForPerson(personId, period) {
     .filter(r => r.personId === personId && r.timestamp >= cutoff && isRedeem(r))
     .reduce((s, r) => s + r.points, 0);
 }
+function deductedForPerson(personId, period) {
+  const cutoff = periodCutoff(period);
+  return state.records
+    .filter(r => r.personId === personId && r.timestamp >= cutoff && isDeduct(r))
+    .reduce((s, r) => s + r.points, 0);
+}
 function balanceForPerson(personId) {
-  return earnedForPerson(personId, 'all') - redeemedForPerson(personId, 'all');
+  // Balance can go negative (designed: deductions always apply, no floor at 0).
+  return earnedForPerson(personId, 'all') - redeemedForPerson(personId, 'all') - deductedForPerson(personId, 'all');
 }
 
 // Backwards-compatible: 'all' returns net balance (earned − redeemed);
@@ -1981,13 +2187,19 @@ function renderStatsGrid() {
 }
 
 function computeStreak(personFilter) {
-  const has = new Set(state.records
-    .filter(r => isEarn(r) && (personFilter === 'all' || r.personId === personFilter))
-    .map(r => r.dateISO));
+  // Net-positive day: a day counts toward the streak only if earn − deduct > 0.
+  // A pure deduct day or break-even day breaks the streak; redemptions don't affect it.
+  const dailyNet = {};
+  state.records
+    .filter(r => personFilter === 'all' || r.personId === personFilter)
+    .forEach(r => {
+      if (isEarn(r))   dailyNet[r.dateISO] = (dailyNet[r.dateISO] || 0) + r.points;
+      if (isDeduct(r)) dailyNet[r.dateISO] = (dailyNet[r.dateISO] || 0) - r.points;
+    });
   let streak = 0;
   let d = new Date();
   d.setHours(0,0,0,0);
-  while (has.has(todayKey(d))) {
+  while ((dailyNet[todayKey(d)] || 0) > 0) {
     streak++;
     d.setDate(d.getDate() - 1);
   }
@@ -2402,6 +2614,8 @@ function renderSettings() {
   renderActivitiesList();
   renderRewardCategoriesList();
   renderRewardsSettingsList();
+  renderMisbehaviorCategoriesList();
+  renderMisbehaviorsSettingsList();
   renderSyncCard();
   document.getElementById('last-saved').textContent = state.settings.lastSaved
     ? 'Last saved: ' + new Date(state.settings.lastSaved).toLocaleString()
@@ -2592,6 +2806,83 @@ function renderRewardsSettingsList() {
   };
   rcats.forEach(cat => renderGroup(cat, state.rewards.filter(r => r.categoryId === cat.id)));
   const orphans = state.rewards.filter(r => !r.categoryId || !rcats.find(c => c.id === r.categoryId));
+  if (orphans.length) renderGroup({ name: 'Uncategorized', weight: 1, color: '#94a3b8' }, orphans);
+}
+
+function renderMisbehaviorCategoriesList() {
+  const cont = document.getElementById('misbehavior-categories-list');
+  if (!cont) return;
+  cont.innerHTML = '';
+  const mcats = Array.isArray(state.misbehaviorCategories) ? state.misbehaviorCategories : [];
+  if (mcats.length === 0) {
+    cont.innerHTML = '<div class="empty-state" style="padding:20px"><div class="ico">⚠️</div>No misbehavior categories yet. Tap Add.</div>';
+    return;
+  }
+  const items = Array.isArray(state.misbehaviors) ? state.misbehaviors : [];
+  mcats.forEach(c => {
+    const count = items.filter(m => m.categoryId === c.id).length;
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `
+      <span class="lr-dot" style="background:${c.color}">${c.weight}×</span>
+      <span class="lr-name">${escapeHtml(c.name)}</span>
+      <span class="lr-meta">${count} item${count===1?'':'s'}</span>
+      <span class="lr-actions">
+        <button class="edit" title="Edit">${iconEdit()}</button>
+        <button class="del" title="Delete">${iconTrash()}</button>
+      </span>`;
+    row.querySelector('.edit').onclick = () => openMisbehaviorCategoryModal(c);
+    row.querySelector('.del').onclick = () => {
+      if (count > 0) { alert(`Move or delete the ${count} behavior item(s) in this category first.`); return; }
+      if (confirm(`Delete misbehavior category "${c.name}"?`)) {
+        state.misbehaviorCategories = state.misbehaviorCategories.filter(x => x.id !== c.id);
+        save(); renderAll();
+      }
+    };
+    cont.appendChild(row);
+  });
+}
+
+function renderMisbehaviorsSettingsList() {
+  const cont = document.getElementById('misbehaviors-list');
+  if (!cont) return;
+  cont.innerHTML = '';
+  const items = Array.isArray(state.misbehaviors) ? state.misbehaviors : [];
+  if (items.length === 0) {
+    cont.innerHTML = '<div class="empty-state" style="padding:20px"><div class="ico">🟡</div>No behavior items yet. Tap Add.</div>';
+    return;
+  }
+  const mcats = Array.isArray(state.misbehaviorCategories) ? state.misbehaviorCategories : [];
+  const renderGroup = (cat, its) => {
+    if (its.length === 0) return;
+    const header = document.createElement('div');
+    header.style.cssText = 'padding: 10px 16px 4px; font-size:11px; font-weight:600; color: var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; display:flex; align-items:center; gap:6px;';
+    header.innerHTML = `<span style="width:8px;height:8px;border-radius:50%;background:${cat.color}"></span>${escapeHtml(cat.name)} <span style="color:var(--text-dim);font-weight:500">×${cat.weight}</span>`;
+    cont.appendChild(header);
+    its.forEach(m => {
+      const pts = misbehaviorPoints(m);
+      const row = document.createElement('div');
+      row.className = 'list-row';
+      row.innerHTML = `
+        <span class="lr-dot" style="background:${cat.color}">${m.emoji || '⚠️'}</span>
+        <span class="lr-name">${escapeHtml(m.name)}</span>
+        <span class="lr-meta">${m.basePoints} × ${cat.weight} = <strong style="color:var(--danger)">−${pts}</strong></span>
+        <span class="lr-actions">
+          <button class="edit" title="Edit">${iconEdit()}</button>
+          <button class="del" title="Delete">${iconTrash()}</button>
+        </span>`;
+      row.querySelector('.edit').onclick = () => openMisbehaviorModal(m);
+      row.querySelector('.del').onclick = () => {
+        if (confirm(`Delete behavior item "${m.name}"? (Past deductions stay; they'll just show "Removed behavior".)`)) {
+          state.misbehaviors = state.misbehaviors.filter(x => x.id !== m.id);
+          save(); renderAll();
+        }
+      };
+      cont.appendChild(row);
+    });
+  };
+  mcats.forEach(cat => renderGroup(cat, items.filter(m => m.categoryId === cat.id)));
+  const orphans = items.filter(m => !m.categoryId || !mcats.find(c => c.id === m.categoryId));
   if (orphans.length) renderGroup({ name: 'Uncategorized', weight: 1, color: '#94a3b8' }, orphans);
 }
 
@@ -2829,6 +3120,102 @@ function openRewardModal(reward) {
   setTimeout(() => document.getElementById('f-name').focus(), 50);
 }
 
+function openMisbehaviorCategoryModal(category) {
+  const isNew = !category;
+  const c = category || { id: uid(), name: '', weight: 2, color: CATEGORY_COLORS[((state.misbehaviorCategories||[]).length) % CATEGORY_COLORS.length] };
+  modalTitle.textContent = isNew ? 'Add misbehavior category' : 'Edit misbehavior category';
+  modalBody.innerHTML = `
+    <div class="form-group">
+      <label>Name</label>
+      <input id="f-name" type="text" value="${escapeHtml(c.name)}" placeholder="e.g. Disrespect">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Weight (deduction multiplier)</label>
+        <input id="f-weight" type="number" min="0.1" step="0.1" value="${c.weight}">
+      </div>
+      <div class="form-group">
+        <label>Color</label>
+        <div class="color-swatches" id="f-colors"></div>
+      </div>
+    </div>
+    <div style="font-size:12px; color: var(--text-muted); background:var(--bg-soft); padding:10px 12px; border-radius:10px;">
+      Weight is a deduction multiplier. <strong>Higher = harder hit.</strong> e.g. Disrespect ×3 means a base-5 deduction actually subtracts 15 pts; Hygiene neglect ×1 subtracts only 5.
+    </div>`;
+  renderSwatches('f-colors', CATEGORY_COLORS, c.color);
+  modalSave.onclick = () => {
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { alert('Name is required'); return; }
+    c.name = name;
+    c.weight = Math.max(0.1, parseFloat(document.getElementById('f-weight').value) || 1);
+    c.color = document.getElementById('f-colors').dataset.value;
+    if (isNew) {
+      if (!Array.isArray(state.misbehaviorCategories)) state.misbehaviorCategories = [];
+      state.misbehaviorCategories.push(c);
+    }
+    save(); renderAll(); closeModal();
+  };
+  openModal();
+  setTimeout(() => document.getElementById('f-name').focus(), 50);
+}
+
+function openMisbehaviorModal(misbehavior) {
+  if (!Array.isArray(state.misbehaviors)) state.misbehaviors = [];
+  if (!Array.isArray(state.misbehaviorCategories) || state.misbehaviorCategories.length === 0) {
+    state.misbehaviorCategories = defaultMisbehaviorCategories();
+  }
+  const isNew = !misbehavior;
+  const defaultCat = state.misbehaviorCategories.find(c => c.id === 'mb-unkindness') || state.misbehaviorCategories[0];
+  const m = misbehavior || { id: uid(), name: '', emoji: '⚠️', basePoints: 5, categoryId: defaultCat.id };
+  modalTitle.textContent = isNew ? 'Add behavior item' : 'Edit behavior item';
+  const catOptions = state.misbehaviorCategories.map(c =>
+    `<option value="${c.id}" ${c.id === m.categoryId ? 'selected' : ''}>${escapeHtml(c.name)} (×${c.weight})</option>`
+  ).join('');
+  modalBody.innerHTML = `
+    <div class="form-group">
+      <label>Behavior name</label>
+      <input id="f-name" type="text" value="${escapeHtml(m.name)}" placeholder="e.g. Lied to parent">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Emoji</label>
+        <input id="f-emoji" type="text" value="${escapeHtml(m.emoji||'')}" placeholder="⚠️" maxlength="4">
+      </div>
+      <div class="form-group">
+        <label>Base deduction</label>
+        <input id="f-points" type="number" min="0" step="1" value="${m.basePoints}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="f-mcat">${catOptions}</select>
+    </div>
+    <div id="misbehavior-preview" style="font-size:12px; color: var(--text-muted); background:var(--bg-soft); padding:10px 12px; border-radius:10px;"></div>`;
+  function updatePreview() {
+    const base = parseFloat(document.getElementById('f-points').value) || 0;
+    const catId = document.getElementById('f-mcat').value;
+    const cat = state.misbehaviorCategories.find(c => c.id === catId);
+    const w = cat ? cat.weight : 1;
+    document.getElementById('misbehavior-preview').innerHTML =
+      `Deducts <strong style="color:var(--danger)">−${Math.round(base * w)} pts</strong> per log (${base} × ${w}).`;
+  }
+  document.getElementById('f-points').oninput = updatePreview;
+  document.getElementById('f-mcat').onchange = updatePreview;
+  updatePreview();
+  modalSave.onclick = () => {
+    const name = document.getElementById('f-name').value.trim();
+    if (!name) { alert('Name is required'); return; }
+    m.name = name;
+    m.emoji = document.getElementById('f-emoji').value.trim() || '⚠️';
+    m.basePoints = Math.max(0, parseFloat(document.getElementById('f-points').value) || 0);
+    m.categoryId = document.getElementById('f-mcat').value;
+    if (isNew) state.misbehaviors.push(m);
+    save(); renderAll(); closeModal();
+  };
+  openModal();
+  setTimeout(() => document.getElementById('f-name').focus(), 50);
+}
+
 function renderSwatches(containerId, colors, selected) {
   const cont = document.getElementById(containerId);
   cont.innerHTML = '';
@@ -2855,6 +3242,8 @@ document.querySelectorAll('[data-action]').forEach(btn => {
     if (a === 'add-activity') openActivityModal();
     if (a === 'add-reward-category') openRewardCategoryModal();
     if (a === 'add-reward') openRewardModal();
+    if (a === 'add-misbehavior-category') openMisbehaviorCategoryModal();
+    if (a === 'add-misbehavior') openMisbehaviorModal();
   });
 });
 
@@ -3010,11 +3399,11 @@ document.getElementById('btn-sync-pull').onclick = () => pullFromCloud({ confirm
 
 /* ---------- Danger zone ---------- */
 document.getElementById('btn-reset-rewards').onclick = () => {
-  if (confirm('Replace your current rewards with the 20 suggested defaults?\n\nCustom rewards you added will be lost. Past redemptions are kept (they\'ll show "Removed reward" only if you also delete the matching default).')) {
+  if (confirm('Replace your current rewards with the 21 suggested defaults?\n\nCustom rewards you added will be lost. Past redemptions are kept (they\'ll show "Removed reward" only if you also delete the matching default).')) {
     state.rewards = defaultRewards();
     save();
     renderAll();
-    toast('Rewards reset to 20 suggested defaults');
+    toast('Rewards reset to 21 suggested defaults');
   }
 };
 
@@ -3342,6 +3731,7 @@ function renderLog() {
   renderHero();
   renderActivityList();
   renderRecent();
+  renderMisbehaviorList();
 }
 function renderAll() {
   renderLog();
