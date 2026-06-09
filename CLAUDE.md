@@ -127,9 +127,9 @@ Sections are marked with `/* ---------- Name ---------- */` banners. Skim these 
 | Logging | `logActivity`, `logMisbehavior` (confirm dialog + undo toast — no confetti), `renderRecent` — recent list shows earns / redeems / deducts; deducts display with red `−N` |
 | Totals & filters | `earnedForPerson`, `redeemedForPerson`, `deductedForPerson`, `balanceForPerson` (earn − redeem − deduct, can be negative), `totalForPerson` (back-compat — periods other than 'all' return earn-only) |
 | Rewards tab | `renderRewardsTab`, `renderRewardsPersonRow`, `renderRewardsHero`, `renderRewardsGrid`, `redeemReward`, `renderRedemptionsList` |
-| Dashboard | `renderDashboard`, `renderStatsGrid`, `computeStreak`, `renderTopActivities`, `filteredEarnRecords` |
+| Dashboard | `renderDashboard`, `renderStatsGrid` (shows net = earn − deduct for periods, full balance for all-time), `computeStreak`, `renderTopActivities`, `renderTopMisbehaviors`, `filteredEarnRecords`, `filteredRecords` |
 | Charts | `renderCharts` + 5 individual chart renderers (Chart.js); trend charts filter to `isEarn` records |
-| Settings | `renderPeopleList`, `renderCategoriesList`, `renderActivitiesList`, `renderRewardCategoriesList`, `renderRewardsSettingsList`, `renderMisbehaviorCategoriesList`, `renderMisbehaviorsSettingsList`, `renderSyncCard` |
+| Settings | `renderPeopleList`, `renderCategoriesList`, `renderActivitiesList`, `renderRewardCategoriesList`, `renderRewardsSettingsList`, `renderMisbehaviorCategoriesList`, `renderMisbehaviorsSettingsList`, `renderSyncCard`, `applySettingsSection` (filters cards by `settingsSection` global) |
 | Cloud sync (GitHub Gist) | `pushToCloud`, `pullFromCloud`, `queuePush`, `setSyncStatus`, `syncPayload`, `gistHeaders`, `extractGistId`, `GIST_API`, `GIST_FILENAME` |
 | Comments / feedback | `renderCommentBar`, `openCommentDrawer`, `renderCommentList`, `postComment`, `toggleComment`, `deleteComment`, `commentsAsMarkdown`, `copyAllComments`; `currentPage` + `commentFilter` globals; `adjustDockPadding` |
 | Modals | `openPersonModal`, `openCategoryModal`, `openActivityModal`, `openRewardCategoryModal`, `openRewardModal`, `openMisbehaviorCategoryModal`, `openMisbehaviorModal` |
@@ -165,6 +165,8 @@ Sections are marked with `/* ---------- Name ---------- */` banners. Skim these 
 ## Tab layout
 
 Tabs in the bottom nav: **Log** (earn + Behavior section for deductions), **Dashboard** (charts + stats), **Rewards** (redeem), **Search**, **Settings** (CRUD + sync). Tab sections are `<section class="tab" id="tab-{name}">` and shown/hidden by the bottom-nav click handler. When adding a new tab, also update `renderAll()` so all visible tabs re-render after a state change.
+
+**Settings sub-sections (v7+):** the Settings tab has a horizontal pill strip at the top filtering visible cards into 5 buckets: People, Earn (categories + activities), Rewards (reward categories + rewards), Behavior (misbehavior categories + items), Data (export/import + cloud sync + danger zone). Each `.settings-card` carries a `data-settings-section="..."` attribute; `applySettingsSection()` toggles visibility based on the `settingsSection` global. When adding a new settings card, tag it with the right section.
 
 **Log tab structure:** person row → hero card → activity grid (by category) → recent list → collapsed "Behavior (deductions)" section. The Behavior toggle (`#behavior-toggle`) shows/hides `#misbehavior-list`; default state is collapsed so positive actions stay front-and-center.
 

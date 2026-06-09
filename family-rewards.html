@@ -434,6 +434,37 @@
     margin-bottom: 14px;
     overflow: hidden;
   }
+  .settings-sections {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-soft);
+    border-radius: 12px;
+    margin-bottom: 14px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .settings-sections::-webkit-scrollbar { display: none; }
+  .settings-sections .seg-btn {
+    flex: 1 1 auto;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    white-space: nowrap;
+    transition: all .15s;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .settings-sections .seg-btn.active {
+    background: var(--bg-elevated);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
   .settings-card h3 {
     margin: 0;
     padding: 14px 16px;
@@ -1007,6 +1038,11 @@
       <div class="chart-title">Top activities <span class="sub" id="top-period-label">All time</span></div>
       <div id="top-activities"></div>
     </div>
+
+    <div class="chart-card">
+      <div class="chart-title">Top misbehaviors <span class="sub" id="top-mis-period-label">All time</span></div>
+      <div id="top-misbehaviors"></div>
+    </div>
   </section>
 
   <!-- REWARDS TAB -->
@@ -1040,22 +1076,30 @@
 
   <!-- SETTINGS TAB -->
   <section class="tab" id="tab-settings">
-    <div class="settings-card">
+    <div class="settings-sections" id="settings-sections">
+      <button class="seg-btn active" data-settings-section="people">👥 People</button>
+      <button class="seg-btn" data-settings-section="earn">🎯 Earn</button>
+      <button class="seg-btn" data-settings-section="rewards">🎁 Rewards</button>
+      <button class="seg-btn" data-settings-section="behavior">⚠️ Behavior</button>
+      <button class="seg-btn" data-settings-section="data">☁️ Data</button>
+    </div>
+
+    <div class="settings-card" data-settings-section="people">
       <h3>People <button class="add" data-action="add-person"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="people-list"></div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="earn">
       <h3>Categories <button class="add" data-action="add-category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="categories-list"></div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="earn">
       <h3>Activities <button class="add" data-action="add-activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="activities-list"></div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="rewards">
       <h3>Reward categories <button class="add" data-action="add-reward-category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="reward-categories-list"></div>
       <div style="padding: 4px 16px 14px;">
@@ -1063,7 +1107,7 @@
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="rewards">
       <h3>Rewards <button class="add" data-action="add-reward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="rewards-settings-list"></div>
       <div style="padding: 4px 16px 14px;">
@@ -1072,7 +1116,7 @@
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="behavior">
       <h3>Misbehavior categories <button class="add" data-action="add-misbehavior-category"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="misbehavior-categories-list"></div>
       <div style="padding: 4px 16px 14px;">
@@ -1080,12 +1124,12 @@
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="behavior">
       <h3>Behavior items <button class="add" data-action="add-misbehavior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add</button></h3>
       <div class="settings-body" id="misbehaviors-list"></div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="data">
       <h3>Data</h3>
       <div class="settings-body" style="padding: 14px 16px;">
         <p style="margin: 0 0 10px; font-size: 13px; color: var(--text-muted);">Move data between devices: export the JSON file, save it to iCloud/Google Drive/Dropbox, then import on the other device.</p>
@@ -1104,7 +1148,7 @@
       </div>
     </div>
 
-    <div class="settings-card">
+    <div class="settings-card" data-settings-section="data">
       <h3>Cloud sync (GitHub Gist) <span id="sync-badge" class="sync-badge" style="display:none"></span></h3>
       <div class="settings-body" style="padding: 14px 16px;">
         <p style="margin: 0 0 10px; font-size: 13px; color: var(--text-muted);">Auto-saves every change to a private GitHub Gist you own. Every save becomes a versioned revision, so you can roll back to an earlier copy if anything ever goes wrong. Leave the token blank to stay offline (data lives only in this browser).</p>
@@ -1137,7 +1181,7 @@
       </div>
     </div>
 
-    <div class="settings-card danger-zone">
+    <div class="settings-card danger-zone" data-settings-section="data">
       <h3>Danger zone</h3>
       <div class="settings-body">
         <div class="btn-row">
@@ -1328,6 +1372,7 @@ function defaultMisbehaviors() {
     { id: uid(), name: 'Refused to brush teeth',   basePoints: 3, emoji: '🦷', categoryId: MC.hygiene },
     // Self-care neglect (×1)
     { id: uid(), name: 'Picky / refused food',     basePoints: 3, emoji: '🍽️', categoryId: MC.selfcare },
+    { id: uid(), name: 'Not in bed on time',       basePoints: 3, emoji: '🛌', categoryId: MC.selfcare },
   ];
 }
 
@@ -2166,10 +2211,13 @@ function renderDashboard() {
   renderPersonFilter();
   renderStatsGrid();
   renderTopActivities();
+  renderTopMisbehaviors();
   renderCharts();
   document.getElementById('chart-period-label').textContent = periodLabel(dashState.period);
   document.getElementById('cat-period-label').textContent = periodLabel(dashState.period);
   document.getElementById('top-period-label').textContent = periodLabel(dashState.period);
+  const tml = document.getElementById('top-mis-period-label');
+  if (tml) tml.textContent = periodLabel(dashState.period);
 }
 
 function renderPersonFilter() {
@@ -2203,44 +2251,61 @@ function filteredEarnRecords() {
 
 function renderStatsGrid() {
   const matches = r => dashState.personFilter === 'all' || r.personId === dashState.personFilter;
-  const earnedAll  = state.records.filter(r => isEarn(r)  && matches(r)).reduce((s,r)=>s+r.points,0);
-  const spentAll   = state.records.filter(r => isRedeem(r) && matches(r)).reduce((s,r)=>s+r.points,0);
-  const cutoff     = periodCutoff(dashState.period);
-  const earnedIn   = state.records.filter(r => isEarn(r)  && r.timestamp >= cutoff && matches(r)).reduce((s,r)=>s+r.points,0);
-  const spentIn    = state.records.filter(r => isRedeem(r) && r.timestamp >= cutoff && matches(r)).reduce((s,r)=>s+r.points,0);
-  const todayPts   = state.records.filter(r => isEarn(r)  && r.dateISO === todayKey() && matches(r)).reduce((s,r)=>s+r.points,0);
-  const weekPts    = state.records.filter(r => isEarn(r)  && r.timestamp >= startOfWeek(new Date()).getTime() && matches(r)).reduce((s,r)=>s+r.points,0);
-  const streak     = computeStreak(dashState.personFilter);
-  const balance    = earnedAll - spentAll;
+  const sumWhere = (filter) => state.records.filter(r => filter(r) && matches(r)).reduce((s,r)=>s+r.points,0);
+  const earnedAll    = sumWhere(r => isEarn(r));
+  const spentAll     = sumWhere(r => isRedeem(r));
+  const deductedAll  = sumWhere(r => isDeduct(r));
+  const cutoff       = periodCutoff(dashState.period);
+  const earnedIn     = sumWhere(r => isEarn(r)   && r.timestamp >= cutoff);
+  const spentIn      = sumWhere(r => isRedeem(r) && r.timestamp >= cutoff);
+  const deductedIn   = sumWhere(r => isDeduct(r) && r.timestamp >= cutoff);
+  const todayEarn    = sumWhere(r => isEarn(r)   && r.dateISO === todayKey());
+  const todayDeduct  = sumWhere(r => isDeduct(r) && r.dateISO === todayKey());
+  const weekStart    = startOfWeek(new Date()).getTime();
+  const weekEarn     = sumWhere(r => isEarn(r)   && r.timestamp >= weekStart);
+  const weekDeduct   = sumWhere(r => isDeduct(r) && r.timestamp >= weekStart);
+  const streak       = computeStreak(dashState.personFilter);
+  const balance      = earnedAll - spentAll - deductedAll;
+  const netToday     = todayEarn - todayDeduct;
+  const netWeek      = weekEarn - weekDeduct;
 
-  // Headline: balance when viewing all-time, otherwise earnings in the period
-  const mainValue = dashState.period === 'all' ? balance : earnedIn;
-  const mainLabel = dashState.period === 'all' ? '⭐ Balance · all time' : `⭐ Earned · ${periodLabel(dashState.period).toLowerCase()}`;
-  const mainSub   = dashState.period === 'all'
-    ? `${earnedAll.toLocaleString()} earned · ${spentAll.toLocaleString()} spent`
-    : (spentIn > 0 ? `${spentIn} spent in this period` : `${state.records.filter(r => isEarn(r) && r.timestamp >= cutoff && matches(r)).length} entries`);
+  // Headline: balance when viewing all-time, otherwise net (earned − deducted) in the period
+  const mainValue = dashState.period === 'all' ? balance : (earnedIn - deductedIn);
+  const mainLabel = dashState.period === 'all' ? '⭐ Balance · all time' : `⭐ Net · ${periodLabel(dashState.period).toLowerCase()}`;
+  const subParts  = [];
+  if (dashState.period === 'all') {
+    subParts.push(`${earnedAll.toLocaleString()} earned`);
+    if (spentAll > 0)    subParts.push(`${spentAll.toLocaleString()} spent`);
+    if (deductedAll > 0) subParts.push(`${deductedAll.toLocaleString()} deducted`);
+  } else {
+    subParts.push(`${earnedIn} earned`);
+    if (spentIn > 0)    subParts.push(`${spentIn} spent`);
+    if (deductedIn > 0) subParts.push(`${deductedIn} deducted`);
+  }
+  const mainSub = subParts.join(' · ');
+  const negStyle = (v) => v < 0 ? ' style="color:var(--danger)"' : '';
 
   const cont = document.getElementById('stats-grid');
   cont.innerHTML = `
     <div class="stat-card">
       <div class="sc-label">${mainLabel}</div>
-      <div class="sc-value">${mainValue.toLocaleString()}</div>
+      <div class="sc-value"${negStyle(mainValue)}>${mainValue.toLocaleString()}</div>
       <div class="sc-sub">${mainSub}</div>
     </div>
     <div class="stat-card">
       <div class="sc-label">📅 Today</div>
-      <div class="sc-value">${todayPts}</div>
-      <div class="sc-sub">points earned today</div>
+      <div class="sc-value"${negStyle(netToday)}>${netToday}</div>
+      <div class="sc-sub">${todayEarn} earned${todayDeduct > 0 ? ` · ${todayDeduct} deducted` : ''}</div>
     </div>
     <div class="stat-card">
       <div class="sc-label">🗓️ This week</div>
-      <div class="sc-value">${weekPts}</div>
-      <div class="sc-sub">since Monday</div>
+      <div class="sc-value"${negStyle(netWeek)}>${netWeek}</div>
+      <div class="sc-sub">${weekEarn} earned${weekDeduct > 0 ? ` · ${weekDeduct} deducted` : ''}</div>
     </div>
     <div class="stat-card">
       <div class="sc-label">🔥 Day streak</div>
       <div class="sc-value">${streak}</div>
-      <div class="sc-sub">consecutive earning days</div>
+      <div class="sc-sub">consecutive net-positive days</div>
     </div>`;
 }
 
@@ -2292,6 +2357,35 @@ function renderTopActivities() {
   });
 }
 
+function renderTopMisbehaviors() {
+  const cont = document.getElementById('top-misbehaviors');
+  if (!cont) return;
+  const recs = filteredRecords().filter(isDeduct);
+  const counts = {};
+  recs.forEach(r => {
+    counts[r.misbehaviorId] = counts[r.misbehaviorId] || { count: 0, points: 0 };
+    counts[r.misbehaviorId].count++;
+    counts[r.misbehaviorId].points += r.points;
+  });
+  const sorted = Object.entries(counts).sort((a,b) => b[1].points - a[1].points).slice(0, 6);
+  if (sorted.length === 0) {
+    cont.innerHTML = '<div class="empty-state" style="padding:20px"><div class="ico">✨</div>No deductions this period — clean record.</div>';
+    return;
+  }
+  cont.innerHTML = '';
+  sorted.forEach(([mId, info]) => {
+    const m = (state.misbehaviors||[]).find(x => x.id === mId);
+    const cat = m ? (state.misbehaviorCategories||[]).find(c => c.id === m.categoryId) : null;
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `
+      <span class="lr-dot" style="background:${cat ? cat.color : '#999'}">${m ? (m.emoji||'⚠️') : '?'}</span>
+      <span class="lr-name">${m ? escapeHtml(m.name) : 'Removed'}</span>
+      <span class="lr-meta">${info.count}× · <span style="color:var(--danger)">−${info.points} pts</span></span>`;
+    cont.appendChild(row);
+  });
+}
+
 /* ---------- Charts ---------- */
 function chartTextColor() {
   return getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b';
@@ -2323,9 +2417,12 @@ function renderChartByPerson() {
   const ctx = document.getElementById('chart-by-person');
   if (!ctx) return;
   const labels = state.people.map(p => p.name);
-  // All-time view = balance (earned − redeemed). Shorter periods = earnings in that period.
+  // All-time view = full balance (earned − spent − deducted). Shorter periods = net (earned − deducted)
+  // in that period; spending is excluded because it shifts balance but isn't behavior in the window.
   const data = state.people.map(p =>
-    dashState.period === 'all' ? balanceForPerson(p.id) : earnedForPerson(p.id, dashState.period)
+    dashState.period === 'all'
+      ? balanceForPerson(p.id)
+      : earnedForPerson(p.id, dashState.period) - deductedForPerson(p.id, dashState.period)
   );
   const colors = state.people.map(p => p.color);
   charts.byPerson = new Chart(ctx, {
@@ -2666,7 +2763,19 @@ function renderSyncCard() {
 }
 
 /* ---------- Settings: People, Categories, Activities ---------- */
+let settingsSection = 'people';
+function applySettingsSection() {
+  document.querySelectorAll('#tab-settings [data-settings-section]').forEach(el => {
+    if (el.classList.contains('seg-btn')) {
+      el.classList.toggle('active', el.dataset.settingsSection === settingsSection);
+    } else {
+      el.style.display = (el.dataset.settingsSection === settingsSection) ? '' : 'none';
+    }
+  });
+}
+
 function renderSettings() {
+  applySettingsSection();
   renderPeopleList();
   renderCategoriesList();
   renderActivitiesList();
@@ -3290,18 +3399,19 @@ function openRecordDetailsModal(record) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label>Start time (optional)</label>
+        <label>Start time</label>
         <input id="f-start" type="time" value="${escapeHtml(r.startTime||'')}">
       </div>
       <div class="form-group">
-        <label>Duration (min, optional)</label>
-        <input id="f-dur" type="number" min="0" step="1" value="${r.durationMin||''}">
+        <label>Duration (min)</label>
+        <input id="f-dur" type="number" min="0" step="1" value="${r.durationMin||''}" placeholder="optional">
       </div>
     </div>
     <div class="form-group">
-      <label>Note (optional)</label>
+      <label>Note</label>
       <textarea id="f-note" rows="3" placeholder="e.g. read Charlotte's Web ch. 3">${escapeHtml(r.note||'')}</textarea>
-    </div>`;
+    </div>
+    <div style="font-size:11px; color:var(--text-dim); margin-top:-6px;">All fields optional.</div>`;
   modalSave.onclick = () => {
     const st = document.getElementById('f-start').value.trim();
     const du = parseFloat(document.getElementById('f-dur').value);
@@ -3342,6 +3452,13 @@ document.querySelectorAll('[data-action]').forEach(btn => {
     if (a === 'add-reward') openRewardModal();
     if (a === 'add-misbehavior-category') openMisbehaviorCategoryModal();
     if (a === 'add-misbehavior') openMisbehaviorModal();
+  });
+});
+
+document.querySelectorAll('#settings-sections .seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    settingsSection = btn.dataset.settingsSection;
+    applySettingsSection();
   });
 });
 
