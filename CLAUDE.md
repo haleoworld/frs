@@ -1,10 +1,12 @@
-# Family Reward System — Project Context
+# Ember — Project Context
 
-A single-file HTML reward tracker for Jerry's family. Self-contained, runs in any browser, no server, no LLM calls at runtime. **Cost to operate: $0.**
+A single-file HTML behavior-and-reward tracker for Jerry's family. Self-contained, runs in any browser, no server. **$0 baseline runtime cost** — optional Anthropic API key (for the ⚡ AI quick log) is billed to the user's own account.
+
+> **Naming note:** the project was renamed from "Family Reward System" → **Ember** on 2026-06-10. Internal identifiers kept the old names on purpose to avoid wiping user data: `STORAGE_KEY = 'familyRewards.v1'` (localStorage), `GIST_FILENAME = 'family-rewards-data.json'` (cloud sync file). User-facing strings, repo file name (`index.html`), and folder (`ember/`) all use the new name. Don't "fix" the legacy internal names — they're load-bearing.
 
 ## File map
 
-- `family-rewards.html` — the entire app (HTML + CSS + JS in one file, ~3100 lines after sync + PWA + rewards + comments additions)
+- `index.html` — the entire app (HTML + CSS + JS in one file, ~4200 lines after sync + PWA + rewards + comments + misbehaviors + routing + AI quick log). Renamed from `family-rewards.html` on 2026-06-10 so the URL is just `haleoworld.github.io/frs/`.
 - `CLAUDE.md` — this file (project context for future Claude sessions)
 - `DEPLOY.md` — Jerry-facing deployment + install instructions (GitHub Pages + per-platform Add to Home Screen). Refer Jerry here when he asks about hosting, updating, or installing on a new device.
 - No other source files. Nothing to install or build.
@@ -197,7 +199,7 @@ The file loads Chart.js from `cdn.jsdelivr.net`. If Jerry needs true offline use
 
 ## Token-efficiency rules for future Claude sessions
 
-1. **Read this file first**, then jump straight to the relevant section banner in `family-rewards.html`. Don't dump the whole file into context.
+1. **Read this file first**, then jump straight to the relevant section banner in `index.html`. Don't dump the whole file into context.
 2. **Use Grep** to locate functions before reading. e.g. `Grep "function renderDaily"` instead of scanning.
 3. **Make targeted Edits**, not rewrites. The Edit tool's diff costs less than a full Write.
 4. **Don't re-derive** the schema, defaults, or sync model — they're documented above. Trust this file; verify only when the user reports something that contradicts it.

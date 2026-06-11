@@ -1,4 +1,4 @@
-# Deploying the Family Reward System
+# Deploying Ember
 
 A reference for hosting the app, syncing data, and installing it on every device. After first-time setup, daily use is just tapping the home-screen icon — no maintenance.
 
@@ -6,8 +6,8 @@ A reference for hosting the app, syncing data, and installing it on every device
 
 The app is hosted on **GitHub Pages** from the repo `haleoworld/frs`. There's nothing to drag or upload manually:
 
-1. **Push the file to the repo.** Any change to `family-rewards.html` that lands on the Pages-serving branch (e.g. `main`) is published automatically.
-2. **The URL stays constant.** GitHub Pages serves it at a fixed address (pattern `https://haleoworld.github.io/frs/family-rewards.html`, or your custom domain if configured). Every device picks up the new version on the next page load.
+1. **Push the file to the repo.** Any change to `index.html` that lands on the Pages-serving branch (e.g. `main`) is published automatically.
+2. **The URL stays constant.** GitHub Pages serves it at `https://haleoworld.github.io/frs/` (or your custom domain if configured). Every device picks up the new version on the next page load.
 
 That's the whole deploy step: **push, and it's live.** No build, no servers, no SSL to manage.
 
@@ -19,7 +19,7 @@ Data syncs across devices through a **private GitHub Gist** you own. Every save 
 
 ### First device (one time, ~2 minutes)
 
-1. Create a token: go to **github.com/settings/tokens/new**, name it "Family Rewards sync", and under **scopes tick only `gist`** — nothing else. Choose an expiry (or "No expiration"), then **Generate token** and copy it (starts with `ghp_`).
+1. Create a token: go to **github.com/settings/tokens/new**, name it "Ember sync", and under **scopes tick only `gist`** — nothing else. Choose an expiry (or "No expiration"), then **Generate token** and copy it (starts with `ghp_`).
 2. Open the app → **Settings → Cloud sync**. Paste the token, **leave Gist ID blank**, and click **Save & test**.
 3. The app creates a new private gist, saves your data, and shows the **Gist ID** just above the button. Copy that ID — you'll need it on other devices.
 
@@ -56,7 +56,7 @@ Data syncs across devices through a **private GitHub Gist** you own. Every save 
 
 ## Part 4 — Updating the app later
 
-When `family-rewards.html` changes (new feature, bug fix, tweak):
+When `index.html` changes (new feature, bug fix, tweak):
 
 1. **Push the new file to the repo.** GitHub Pages redeploys automatically; the URL is unchanged.
 2. Each device picks up the update on next open. If not, pull-to-refresh (mobile) or Cmd/Ctrl+R (desktop).

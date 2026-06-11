@@ -6,17 +6,17 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Family Rewards">
-<meta name="application-name" content="Family Rewards">
+<meta name="apple-mobile-web-app-title" content="Ember">
+<meta name="application-name" content="Ember">
 <meta name="theme-color" content="#6366f1">
 <meta name="description" content="Track kids' activities and weighted reward points across mobile and desktop.">
-<title>Family Reward System</title>
+<title>Ember</title>
 <!-- Favicon (browser tab icon) -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='18'%20fill='%236366f1'/%3E%3Cg%20fill='none'%20stroke='%23fff'%20stroke-width='6.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M79.91%2036.05%20A33%2033%200%201%201%2063.95%2020.09'/%3E%3Cpath%20d='M71.04%2043.57%20A22%2022%200%201%201%2056.43%2028.96'/%3E%3Cpath%20d='M60.98%2049.42%20A11%2011%200%201%201%2050.58%2039.02'/%3E%3Cline%20x1='79.70'%20y1='20.30'%20x2='50'%20y2='50'/%3E%3Cpath%20d='M60.83%2048.09%20L50%2050%20L51.91%2039.17'/%3E%3C/g%3E%3C/svg%3E">
 <!-- Apple Touch Icon: shown when added to iOS/iPadOS home screen (full-bleed purple square, white radar; OS masks corners) -->
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Crect%20width='100'%20height='100'%20rx='0'%20fill='%236366f1'/%3E%3Cg%20fill='none'%20stroke='%23fff'%20stroke-width='6.5'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M79.91%2036.05%20A33%2033%200%201%201%2063.95%2020.09'/%3E%3Cpath%20d='M71.04%2043.57%20A22%2022%200%201%201%2056.43%2028.96'/%3E%3Cpath%20d='M60.98%2049.42%20A11%2011%200%201%201%2050.58%2039.02'/%3E%3Cline%20x1='79.70'%20y1='20.30'%20x2='50'%20y2='50'/%3E%3Cpath%20d='M60.83%2048.09%20L50%2050%20L51.91%2039.17'/%3E%3C/g%3E%3C/svg%3E">
 <!-- PWA manifest (inlined as data URI so the file stays self-contained) -->
-<link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiRmFtaWx5IFJld2FyZCBTeXN0ZW0iLCJzaG9ydF9uYW1lIjoiUmV3YXJkcyIsImRlc2NyaXB0aW9uIjoiVHJhY2sga2lkcyBhY3Rpdml0aWVzIGFuZCBwb2ludHMiLCJzdGFydF91cmwiOiIuIiwic2NvcGUiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJvcmllbnRhdGlvbiI6InBvcnRyYWl0IiwiYmFja2dyb3VuZF9jb2xvciI6IiNmNmY3ZmIiLCJ0aGVtZV9jb2xvciI6IiM2MzY2ZjEiLCJpY29ucyI6W3sic3JjIjoiZGF0YTppbWFnZS9zdmcreG1sLCUzQ3N2ZyUyMHhtbG5zPSUyMmh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJTIyJTIwdmlld0JveD0lMjIwJTIwMCUyMDEwMCUyMDEwMCUyMiUzRSUzQ3JlY3QlMjB3aWR0aD0lMjIxMDAlMjIlMjBoZWlnaHQ9JTIyMTAwJTIyJTIwcng9JTIyMCUyMiUyMGZpbGw9JTIyJTIzNjM2NmYxJTIyLyUzRSUzQ2clMjBmaWxsPSUyMm5vbmUlMjIlMjBzdHJva2U9JTIyJTIzZmZmJTIyJTIwc3Ryb2tlLXdpZHRoPSUyMjYuNSUyMiUyMHN0cm9rZS1saW5lY2FwPSUyMnJvdW5kJTIyJTIwc3Ryb2tlLWxpbmVqb2luPSUyMnJvdW5kJTIyJTNFJTNDcGF0aCUyMGQ9JTIyTTc5LjkxJTIwMzYuMDUlMjBBMzMlMjAzMyUyMDAlMjAxJTIwMSUyMDYzLjk1JTIwMjAuMDklMjIvJTNFJTNDcGF0aCUyMGQ9JTIyTTcxLjA0JTIwNDMuNTclMjBBMjIlMjAyMiUyMDAlMjAxJTIwMSUyMDU2LjQzJTIwMjguOTYlMjIvJTNFJTNDcGF0aCUyMGQ9JTIyTTYwLjk4JTIwNDkuNDIlMjBBMTElMjAxMSUyMDAlMjAxJTIwMSUyMDUwLjU4JTIwMzkuMDIlMjIvJTNFJTNDbGluZSUyMHgxPSUyMjc5LjcwJTIyJTIweTE9JTIyMjAuMzAlMjIlMjB4Mj0lMjI1MCUyMiUyMHkyPSUyMjUwJTIyLyUzRSUzQ3BhdGglMjBkPSUyMk02MC44MyUyMDQ4LjA5JTIwTDUwJTIwNTAlMjBMNTEuOTElMjAzOS4xNyUyMi8lM0UlM0MvZyUzRSUzQy9zdmclM0UiLCJzaXplcyI6ImFueSIsInR5cGUiOiJpbWFnZS9zdmcreG1sIiwicHVycG9zZSI6ImFueSBtYXNrYWJsZSJ9XX0='>
+<link rel="manifest" href='data:application/manifest+json;base64,eyJuYW1lIjoiRW1iZXIiLCJzaG9ydF9uYW1lIjoiRW1iZXIiLCJkZXNjcmlwdGlvbiI6IlRyYWNrIGtpZHMnIGFjdGl2aXRpZXMsIGJlaGF2aW9ycywgYW5kIHBvaW50cyIsInN0YXJ0X3VybCI6Ii4iLCJzY29wZSI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsIm9yaWVudGF0aW9uIjoicG9ydHJhaXQiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiI2Y2ZjdmYiIsInRoZW1lX2NvbG9yIjoiIzYzNjZmMSIsImljb25zIjpbeyJzcmMiOiJkYXRhOmltYWdlL3N2Zyt4bWwsJTNDc3ZnJTIweG1sbnM9JTIyaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmclMjIlMjB2aWV3Qm94PSUyMjAlMjAwJTIwMTAwJTIwMTAwJTIyJTNFJTNDcmVjdCUyMHdpZHRoPSUyMjEwMCUyMiUyMGhlaWdodD0lMjIxMDAlMjIlMjByeD0lMjIwJTIyJTIwZmlsbD0lMjIlMjM2MzY2ZjElMjIvJTNFJTNDZyUyMGZpbGw9JTIybm9uZSUyMiUyMHN0cm9rZT0lMjIlMjNmZmYlMjIlMjBzdHJva2Utd2lkdGg9JTIyNi41JTIyJTIwc3Ryb2tlLWxpbmVjYXA9JTIycm91bmQlMjIlMjBzdHJva2UtbGluZWpvaW49JTIycm91bmQlMjIlM0UlM0NwYXRoJTIwZD0lMjJNNzkuOTElMjAzNi4wNSUyMEEzMyUyMDMzJTIwMCUyMDElMjAxJTIwNjMuOTUlMjAyMC4wOSUyMi8lM0UlM0NwYXRoJTIwZD0lMjJNNzEuMDQlMjA0My41NyUyMEEyMiUyMDIyJTIwMCUyMDElMjAxJTIwNTYuNDMlMjAyOC45NiUyMi8lM0UlM0NwYXRoJTIwZD0lMjJNNjAuOTglMjA0OS40MiUyMEExMSUyMDExJTIwMCUyMDElMjAxJTIwNTAuNTglMjAzOS4wMiUyMi8lM0UlM0NsaW5lJTIweDE9JTIyNzkuNzAlMjIlMjB5MT0lMjIyMC4zMCUyMiUyMHgyPSUyMjUwJTIyJTIweTI9JTIyNTAlMjIvJTNFJTNDcGF0aCUyMGQ9JTIyTTYwLjgzJTIwNDguMDklMjBMNTAlMjA1MCUyMEw1MS45MSUyMDM5LjE3JTIyLyUzRSUzQy9nJTNFJTNDL3N2ZyUzRSIsInNpemVzIjoiYW55IiwidHlwZSI6ImltYWdlL3N2Zyt4bWwiLCJwdXJwb3NlIjoiYW55IG1hc2thYmxlIn1dfQ=='>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
   :root {
@@ -971,7 +971,7 @@
 </head>
 <body>
 <header class="app-header">
-  <div class="app-title"><span class="star">⭐</span><span id="header-title">Family Rewards</span></div>
+  <div class="app-title"><span class="star">🔥</span><span id="header-title">Ember</span></div>
   <div class="header-actions">
     <button class="icon-btn" id="refresh-btn" title="Refresh app" aria-label="Refresh app">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path></svg>
@@ -1240,7 +1240,7 @@
     </div>
 
     <div style="text-align:center; color: var(--text-dim); font-size: 11px; padding: 12px 0 28px;">
-      Family Reward System · self-contained · your data lives in this browser
+      Ember · self-contained · your data lives in this browser
     </div>
   </section>
 </main>
@@ -1327,10 +1327,12 @@
 
 <script>
 /* ============================================================
-   Family Reward System — single-file app
+   Ember — single-file app
    Data: localStorage, JSON export/import for cross-device sync
    ============================================================ */
 
+// NOTE: localStorage key is intentionally still 'familyRewards.v1' (pre-rename name) —
+// renaming would wipe every existing user's data on next load. The key is internal only.
 const STORAGE_KEY = 'familyRewards.v1';
 const PERSON_COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#06b6d4','#8b5cf6','#ef4444','#14b8a6'];
 const PERSON_EMOJIS = ['🦊','🐼','🦁','🐨','🐻','🐯','🦄','🐧','🦉','🐢'];
@@ -2844,6 +2846,8 @@ function renderChartMonthly() {
 // Every save PATCHes the whole state JSON into one file in a private gist the user owns.
 // GitHub versions every PATCH, so the gist's Revisions tab is a free, restorable backup history.
 const GIST_API = 'https://api.github.com/gists';
+// NOTE: gist filename is intentionally still 'family-rewards-data.json' (pre-rename) —
+// renaming would orphan every existing user's synced data. Internal only; never shown.
 const GIST_FILENAME = 'family-rewards-data.json';
 let syncTimer = null;
 let isSyncing = false;
@@ -2906,7 +2910,7 @@ async function pushToCloud(opts = {}) {
   setSyncStatus('syncing', '· syncing…');
   try {
     const body = JSON.stringify({
-      description: 'Family Reward System data (auto-managed — do not edit by hand)',
+      description: 'Ember data (auto-managed — do not edit by hand)',
       public: false,
       files: { [GIST_FILENAME]: { content: syncPayload() } },
     });
@@ -3710,7 +3714,7 @@ document.getElementById('btn-export').onclick = () => {
   const dt = new Date();
   const stamp = `${dt.getFullYear()}${String(dt.getMonth()+1).padStart(2,'0')}${String(dt.getDate()).padStart(2,'0')}-${String(dt.getHours()).padStart(2,'0')}${String(dt.getMinutes()).padStart(2,'0')}`;
   a.href = url;
-  a.download = `family-rewards-${stamp}.json`;
+  a.download = `ember-${stamp}.json`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
   toast('Exported JSON');
@@ -4261,7 +4265,7 @@ function deleteComment(id) {
 }
 
 function commentsAsMarkdown() {
-  let md = `# Family Rewards — Comments & Requests\n\n_Exported ${new Date().toLocaleString()}_\n\n`;
+  let md = `# Ember — Comments & Requests\n\n_Exported ${new Date().toLocaleString()}_\n\n`;
   PAGE_ORDER.forEach(page => {
     const items = commentsForPage(page);
     md += `## ${PAGE_LABELS[page]}\n`;
