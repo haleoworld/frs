@@ -291,7 +291,7 @@
   .log-fab {
     display: none;
     position: fixed;
-    bottom: calc(110px + var(--safe-bottom, 0px));
+    bottom: calc(var(--dock-height, 110px) + 16px);
     right: 18px;
     width: 56px; height: 56px;
     border-radius: 50%;
@@ -830,6 +830,9 @@
     background: var(--bg-elevated);
   }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  /* Grid children must be allowed to shrink below their content's intrinsic width,
+     or wide native controls (e.g. iOS input[type=time]) overflow and overlap the next column. */
+  .form-row > .form-group { min-width: 0; }
   .color-swatches { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .color-swatches button {
     width: 28px; height: 28px; border-radius: 50%;
@@ -1091,7 +1094,7 @@
   <section class="tab" id="tab-search">
     <div class="search-bar">
       <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" id="search-input" placeholder="Search activities, rewards, categories…" autocomplete="off" autocapitalize="off" spellcheck="false" />
+      <input type="text" id="search-input" placeholder="Search activities, rewards, behaviors…" autocomplete="off" autocapitalize="off" spellcheck="false" />
       <button class="search-clear" id="search-clear" title="Clear" aria-label="Clear search">✕</button>
     </div>
     <div id="search-results"></div>
@@ -2396,19 +2399,37 @@ function renderSearch() {
     rewBuckets.push({ cat: { id: '__none', name: 'Uncategorized', weight: 1, color: '#94a3b8' }, items: rewOrphans });
   }
 
+  // Misbehaviors grouped by misbehavior-category. A category-name match expands the whole category.
+  const mcats = Array.isArray(state.misbehaviorCategories) ? state.misbehaviorCategories : [];
+  const allMis = Array.isArray(state.misbehaviors) ? state.misbehaviors : [];
+  const misBuckets = mcats.map(cat => {
+    const all = allMis.filter(m => m.categoryId === cat.id);
+    const items = matches(cat.name) ? all : all.filter(m => matches(m.name));
+    return { cat, items };
+  }).filter(b => b.items.length > 0);
+
+  const misOrphans = allMis.filter(m =>
+    (!m.categoryId || !mcats.find(c => c.id === m.categoryId)) && matches(m.name)
+  );
+  if (misOrphans.length) {
+    misBuckets.push({ cat: { id: '__none', name: 'Uncategorized', weight: 1, color: '#94a3b8' }, items: misOrphans });
+  }
+
   const actCount = actBuckets.reduce((s, b) => s + b.items.length, 0);
   const rewCount = rewBuckets.reduce((s, b) => s + b.items.length, 0);
-  const total = actCount + rewCount;
+  const misCount = misBuckets.reduce((s, b) => s + b.items.length, 0);
+  const total = actCount + rewCount + misCount;
 
   if (total === 0) {
-    cont.innerHTML = `<div class="empty-state"><div class="ico">🔍</div>${q ? `No matches for &ldquo;${escapeHtml(searchQuery)}&rdquo;` : 'Nothing to search yet — add some activities or rewards in Settings.'}</div>`;
+    cont.innerHTML = `<div class="empty-state"><div class="ico">🔍</div>${q ? `No matches for &ldquo;${escapeHtml(searchQuery)}&rdquo;` : 'Nothing to search yet — add some activities, rewards or behaviors in Settings.'}</div>`;
     return;
   }
 
   if (q) {
     const meta = document.createElement('div');
     meta.className = 'search-meta';
-    meta.textContent = `${total} match${total === 1 ? '' : 'es'} · ${actCount} activit${actCount === 1 ? 'y' : 'ies'}, ${rewCount} reward${rewCount === 1 ? '' : 's'}`;
+    const parts = [`${actCount} activit${actCount === 1 ? 'y' : 'ies'}`, `${rewCount} reward${rewCount === 1 ? '' : 's'}`, `${misCount} behavior${misCount === 1 ? '' : 's'}`];
+    meta.textContent = `${total} match${total === 1 ? '' : 'es'} · ${parts.join(', ')}`;
     cont.appendChild(meta);
   }
 
@@ -2477,6 +2498,40 @@ function renderSearch() {
           <div class="a-name">${escapeHtml(r.name)}</div>
           ${!affordable && p ? `<div class="locked-msg">Need ${shortfall} more</div>` : ''}`;
         btn.onclick = () => redeemReward(r, btn);
+        grid.appendChild(btn);
+      });
+      cont.appendChild(block);
+    });
+  }
+
+  if (misBuckets.length) {
+    const head = document.createElement('div');
+    head.className = 'section-title';
+    head.innerHTML = `Behaviors <span class="right">Tap to deduct →</span>`;
+    cont.appendChild(head);
+    misBuckets.forEach(({ cat, items }) => {
+      const block = document.createElement('div');
+      block.className = 'category-block';
+      block.innerHTML = `
+        <div class="category-header">
+          <span class="category-dot" style="background:${cat.color}"></span>
+          <span class="category-name">${escapeHtml(cat.name)}</span>
+          <span class="category-weight">×${cat.weight}</span>
+        </div>
+        <div class="activity-grid"></div>`;
+      const grid = block.querySelector('.activity-grid');
+      items.forEach(m => {
+        const pts = misbehaviorPoints(m);
+        const btn = document.createElement('button');
+        btn.className = 'activity-btn deduct-btn';
+        btn.style.setProperty('--cat-color', cat.color);
+        btn.innerHTML = `
+          <div class="row-top">
+            <span class="a-emoji">${m.emoji || '⚠️'}</span>
+            <span class="a-pts">−${pts}</span>
+          </div>
+          <div class="a-name">${escapeHtml(m.name)}</div>`;
+        btn.onclick = () => logMisbehavior(m, btn);
         grid.appendChild(btn);
       });
       cont.appendChild(block);
@@ -3382,7 +3437,8 @@ document.getElementById('modal-close').onclick = closeModal;
 document.getElementById('modal-cancel').onclick = closeModal;
 modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 function openModal() { modal.classList.add('show'); }
-function closeModal() { modal.classList.remove('show'); }
+// Reset the Save button label so a modal that customizes it (AI 'Log it') doesn't leak onto the next.
+function closeModal() { modal.classList.remove('show'); modalSave.textContent = 'Save'; }
 
 function openPersonModal(person) {
   const isNew = !person;
@@ -3703,6 +3759,30 @@ function openMisbehaviorModal(misbehavior) {
   setTimeout(() => document.getElementById('f-name').focus(), 50);
 }
 
+// Re-point a record at a different activity/misbehavior (from an AI match) and recompute its
+// frozen points from the NEW item. This is an explicit user reassignment — distinct from the
+// "never mutate points on weight change" rule, which is about leaving history untouched.
+function applyMatchToRecord(r, matched) {
+  if (matched.kind === 'activity') {
+    const a = state.activities.find(x => x.id === matched.id);
+    if (!a) return false;
+    r.kind = 'earn';
+    r.activityId = a.id;
+    delete r.misbehaviorId; delete r.rewardId;
+    r.points = activityPoints(a);
+  } else if (matched.kind === 'misbehavior') {
+    const m = state.misbehaviors.find(x => x.id === matched.id);
+    if (!m) return false;
+    r.kind = 'deduct';
+    r.misbehaviorId = m.id;
+    delete r.activityId; delete r.rewardId;
+    r.points = misbehaviorPoints(m);  // positive magnitude; balance subtracts
+  } else {
+    return false;
+  }
+  return true;
+}
+
 function openRecordDetailsModal(record) {
   const r = record;
   const a = isEarn(r) ? state.activities.find(x => x.id === r.activityId) : null;
@@ -3717,6 +3797,12 @@ function openRecordDetailsModal(record) {
       <strong>${escapeHtml(itemName)}</strong> · ${escapeHtml(kindLabel)}<br>
       <span style="color: var(--text-dim);">${p ? escapeHtml(p.name) : 'Unknown'} · ${formatRelTime(r.timestamp)} · ${isEarn(r) ? '+' : '−'}${r.points} pts</span>
     </div>
+    <div class="form-group">
+      <label>Change activity / behavior <span style="text-transform:none; font-weight:400; color:var(--text-dim);">(optional)</span></label>
+      <textarea id="rd-desc" rows="2" placeholder="Describe what they did to re-match — e.g. brushed teeth, threw a tantrum"></textarea>
+    </div>
+    <div id="rd-ai-status" style="font-size:12px; min-height:16px; color:var(--text-muted); margin:-8px 0 8px;"></div>
+    <div id="rd-ai-result" style="display:none;"></div>
     <div class="form-row">
       <div class="form-group">
         <label>Start time</label>
@@ -3732,7 +3818,73 @@ function openRecordDetailsModal(record) {
       <textarea id="f-note" rows="3" placeholder="e.g. read Charlotte's Web ch. 3">${escapeHtml(r.note||'')}</textarea>
     </div>
     <div style="font-size:11px; color:var(--text-dim); margin-top:-6px;">All fields optional.</div>`;
+
+  const desc   = document.getElementById('rd-desc');
+  const status = document.getElementById('rd-ai-status');
+  const result = document.getElementById('rd-ai-result');
+  let pendingMatch = null;   // set when the AI proposes a different item to re-point this record at
+  let inFlight = false;
+  const effectiveKey = () => (runtimeAiKey || state.settings.anthropicKey || '').trim();
+  if (!effectiveKey()) {
+    status.innerHTML = '<span style="color:var(--text-dim)">Add an API key in Settings → ☁️ Data to re-match by description.</span>';
+  }
+
+  const renderMatch = () => {
+    if (!pendingMatch) { result.style.display = 'none'; result.innerHTML = ''; return; }
+    const m = pendingMatch;
+    const isMis = m.kind === 'misbehavior';
+    const item = isMis ? state.misbehaviors.find(x => x.id === m.id) : state.activities.find(x => x.id === m.id);
+    const emoji = (item && item.emoji) || (isMis ? '⚠️' : '✨');
+    const newPts = isMis ? -misbehaviorPoints(item) : activityPoints(item);
+    const sign = newPts >= 0 ? '+' : '';
+    result.innerHTML = `
+      <div style="border:1px solid var(--primary); border-radius:12px; padding:14px; margin-bottom:14px; background:var(--bg-soft);">
+        <div style="font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;">Saving will change this entry to</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:28px;">${emoji}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700;">${escapeHtml(m.name)}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${escapeHtml(m.category)} · ${isMis ? 'misbehavior' : 'activity'}${m.confidence != null ? ` · ${Math.round(m.confidence*100)}% match` : ''}</div>
+          </div>
+          <span style="font-weight:700; padding:6px 12px; border-radius:999px; ${isMis ? 'color:var(--danger); background:var(--danger-soft)' : 'color:var(--success); background:var(--success-soft)'};">${sign}${Math.abs(newPts)}</span>
+        </div>
+        ${m.confidence != null && m.confidence < 0.5 ? '<div style="font-size:11px; color:var(--text-dim); margin-top:8px;">⚠️ Low confidence — double-check before saving.</div>' : ''}
+        <button type="button" id="rd-clear-match" style="margin-top:10px; font-size:12px; background:none; border:none; color:var(--text-muted); cursor:pointer; text-decoration:underline; padding:0;">Keep original instead</button>
+      </div>`;
+    result.style.display = '';
+    const clr = document.getElementById('rd-clear-match');
+    if (clr) clr.onclick = () => { pendingMatch = null; desc.value = ''; status.textContent = ''; renderMatch(); };
+  };
+
+  const findMatch = async () => {
+    const text = desc.value.trim();
+    pendingMatch = null;
+    renderMatch();
+    if (!text) { status.textContent = ''; return; }
+    if (!effectiveKey()) return;
+    if (inFlight) return;
+    inFlight = true;
+    status.textContent = 'Matching…';
+    try {
+      pendingMatch = await aiMatch(text);
+      status.textContent = '';
+      renderMatch();
+    } catch (e) {
+      status.innerHTML = `<span style="color:var(--danger)">${escapeHtml(e.message)}</span>`;
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  let timer = null;
+  desc.oninput = () => { clearTimeout(timer); timer = setTimeout(findMatch, 700); };
+  desc.onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); findMatch(); } };
+
+  modalSave.textContent = 'Save';
   modalSave.onclick = () => {
+    if (pendingMatch) {
+      if (!applyMatchToRecord(r, pendingMatch)) { alert('That item no longer exists — re-match.'); return; }
+    }
     const st = document.getElementById('f-start').value.trim();
     const du = parseFloat(document.getElementById('f-dur').value);
     const nt = document.getElementById('f-note').value.trim();
@@ -4200,7 +4352,12 @@ function renderCommentBar() {
 
 function adjustDockPadding() {
   const dock = document.querySelector('.bottom-dock');
-  if (dock) document.body.style.paddingBottom = dock.offsetHeight + 'px';
+  if (dock) {
+    const h = dock.offsetHeight;
+    document.body.style.paddingBottom = h + 'px';
+    // Publish the real dock height so fixed overlays (e.g. the log FAB) can sit just above it.
+    document.documentElement.style.setProperty('--dock-height', h + 'px');
+  }
 }
 
 function openCommentDrawer() {

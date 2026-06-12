@@ -1,4 +1,5 @@
 config.local.json
+serve.py
 .env
 .env.*
 .DS_Store
