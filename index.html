@@ -1598,6 +1598,12 @@ function todayKey(d = new Date()) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
+// Format a timestamp (ms) as a value for <input type="datetime-local"> in LOCAL time ("YYYY-MM-DDTHH:MM").
+function toLocalDatetimeInput(ms) {
+  const d = new Date(ms);
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 function startOfWeek(d) {
   const x = new Date(d); x.setHours(0,0,0,0);
   const day = x.getDay(); // 0 = Sun
@@ -1909,7 +1915,8 @@ async function aiMatch(description) {
   if (all.length === 0) throw new Error('No activities or behaviors to match against');
 
   const catalog = all.map(i => `${i.id} | ${i.kind} ${i.points >= 0 ? '+' : ''}${i.points} | ${i.name} (${i.category})`).join('\n');
-  const system = `You match a parent's plain-language description of a child's behavior to ONE item in this catalog (id | kind +/-pts | name (category)):\n\n${catalog}\n\nRules:\n- Pick the single best-fitting item.\n- "activity" items award points (positive); "misbehavior" items deduct (shown as negative).\n- Set confidence 0.0–1.0. If nothing fits well, return your best guess but set confidence below 0.4.\n- Use the match_item tool — do not respond in plain text.`;
+  const nowLocal = toLocalDatetimeInput(Date.now());
+  const system = `You match a parent's plain-language description of a child's behavior to ONE item in this catalog (id | kind +/-pts | name (category)):\n\n${catalog}\n\nRules:\n- Pick the single best-fitting item.\n- "activity" items award points (positive); "misbehavior" items deduct (shown as negative).\n- Set confidence 0.0–1.0. If nothing fits well, return your best guess but set confidence below 0.4.\n- The current local date-time is ${nowLocal}. If the description mentions WHEN it happened (e.g. "5 hours ago", "yesterday at 3pm", "this morning at 8"), compute occurred_at as a local date-time in the SAME "YYYY-MM-DDTHH:MM" format. If no time is mentioned, omit occurred_at.\n- Use the match_item tool — do not respond in plain text.`;
 
   const resp = await fetch(AI_API, {
     method: 'POST',
@@ -1931,6 +1938,7 @@ async function aiMatch(description) {
           properties: {
             item_id: { type: 'string', description: 'The id of the matched item from the catalog' },
             confidence: { type: 'number', description: '0.0 (no fit) to 1.0 (perfect fit)' },
+            occurred_at: { type: 'string', description: 'Local date-time "YYYY-MM-DDTHH:MM" the behavior happened, ONLY if the description states a time (e.g. "5 hours ago"). Omit if no time is mentioned.' },
           },
           required: ['item_id', 'confidence']
         }
@@ -1949,10 +1957,10 @@ async function aiMatch(description) {
   const data = await resp.json();
   const tool = (data.content || []).find(c => c.type === 'tool_use');
   if (!tool || !tool.input) throw new Error('Unexpected response shape');
-  const { item_id, confidence } = tool.input;
+  const { item_id, confidence, occurred_at } = tool.input;
   const matched = all.find(i => i.id === item_id);
   if (!matched) throw new Error('AI returned an unknown id');
-  return { ...matched, confidence: typeof confidence === 'number' ? confidence : 0.5 };
+  return { ...matched, confidence: typeof confidence === 'number' ? confidence : 0.5, occurredAt: (typeof occurred_at === 'string' && occurred_at.trim()) ? occurred_at.trim() : null };
 }
 
 function openAiLogModal() {
@@ -3803,21 +3811,19 @@ function openRecordDetailsModal(record) {
     </div>
     <div id="rd-ai-status" style="font-size:12px; min-height:16px; color:var(--text-muted); margin:-8px 0 8px;"></div>
     <div id="rd-ai-result" style="display:none;"></div>
-    <div class="form-row">
-      <div class="form-group">
-        <label>Start time</label>
-        <input id="f-start" type="time" value="${escapeHtml(r.startTime||'')}">
-      </div>
-      <div class="form-group">
-        <label>Duration (min)</label>
-        <input id="f-dur" type="number" min="0" step="1" value="${r.durationMin||''}" placeholder="optional">
-      </div>
+    <div class="form-group">
+      <label>Date &amp; time</label>
+      <input id="f-start" type="datetime-local" value="${escapeHtml(toLocalDatetimeInput(r.timestamp))}">
+      <div style="font-size:11px; color:var(--text-dim); margin-top:6px;">Changing this moves when the entry is logged.</div>
     </div>
     <div class="form-group">
-      <label>Note</label>
-      <textarea id="f-note" rows="3" placeholder="e.g. read Charlotte's Web ch. 3">${escapeHtml(r.note||'')}</textarea>
+      <label>Duration (min) <span style="text-transform:none; font-weight:400; color:var(--text-dim);">(optional)</span></label>
+      <input id="f-dur" type="number" min="0" step="1" value="${r.durationMin||''}" placeholder="e.g. 20">
     </div>
-    <div style="font-size:11px; color:var(--text-dim); margin-top:-6px;">All fields optional.</div>`;
+    <div class="form-group">
+      <label>Note <span style="text-transform:none; font-weight:400; color:var(--text-dim);">(optional)</span></label>
+      <textarea id="f-note" rows="3" placeholder="e.g. read Charlotte's Web ch. 3">${escapeHtml(r.note||'')}</textarea>
+    </div>`;
 
   const desc   = document.getElementById('rd-desc');
   const status = document.getElementById('rd-ai-status');
@@ -3848,12 +3854,18 @@ function openRecordDetailsModal(record) {
           </div>
           <span style="font-weight:700; padding:6px 12px; border-radius:999px; ${isMis ? 'color:var(--danger); background:var(--danger-soft)' : 'color:var(--success); background:var(--success-soft)'};">${sign}${Math.abs(newPts)}</span>
         </div>
+        ${m.occurredAt && !isNaN(Date.parse(m.occurredAt)) ? `<div style="font-size:12px; color:var(--text-muted); margin-top:8px;">🕐 Time set to ${escapeHtml(new Date(Date.parse(m.occurredAt)).toLocaleString())}</div>` : ''}
         ${m.confidence != null && m.confidence < 0.5 ? '<div style="font-size:11px; color:var(--text-dim); margin-top:8px;">⚠️ Low confidence — double-check before saving.</div>' : ''}
         <button type="button" id="rd-clear-match" style="margin-top:10px; font-size:12px; background:none; border:none; color:var(--text-muted); cursor:pointer; text-decoration:underline; padding:0;">Keep original instead</button>
       </div>`;
     result.style.display = '';
     const clr = document.getElementById('rd-clear-match');
-    if (clr) clr.onclick = () => { pendingMatch = null; desc.value = ''; status.textContent = ''; renderMatch(); };
+    if (clr) clr.onclick = () => {
+      pendingMatch = null; desc.value = ''; status.textContent = '';
+      const fs = document.getElementById('f-start');
+      if (fs) fs.value = toLocalDatetimeInput(r.timestamp);   // revert any AI-applied time too
+      renderMatch();
+    };
   };
 
   const findMatch = async () => {
@@ -3868,6 +3880,12 @@ function openRecordDetailsModal(record) {
     try {
       pendingMatch = await aiMatch(text);
       status.textContent = '';
+      // If the description named a time ("5 hours ago"), pre-fill the date & time field.
+      if (pendingMatch && pendingMatch.occurredAt) {
+        const t = Date.parse(pendingMatch.occurredAt);
+        const fs = document.getElementById('f-start');
+        if (fs && !isNaN(t)) fs.value = toLocalDatetimeInput(t);
+      }
       renderMatch();
     } catch (e) {
       status.innerHTML = `<span style="color:var(--danger)">${escapeHtml(e.message)}</span>`;
@@ -3885,10 +3903,20 @@ function openRecordDetailsModal(record) {
     if (pendingMatch) {
       if (!applyMatchToRecord(r, pendingMatch)) { alert('That item no longer exists — re-match.'); return; }
     }
-    const st = document.getElementById('f-start').value.trim();
+    const stVal = document.getElementById('f-start').value;   // "YYYY-MM-DDTHH:MM" (local) or ""
     const du = parseFloat(document.getElementById('f-dur').value);
     const nt = document.getElementById('f-note').value.trim();
-    if (st) r.startTime = st; else delete r.startTime;
+    if (stVal) {
+      const dt = new Date(stVal);   // datetime-local parses as local time
+      if (!isNaN(dt.getTime())) {
+        r.timestamp = dt.getTime();          // the entry's actual log time moves with the field
+        r.dateISO = todayKey(dt);            // keep the day-bucket in sync for charts/totals
+        const pad = n => String(n).padStart(2, '0');
+        r.startTime = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;   // HH:MM for the recent-row detail line
+      }
+    } else {
+      delete r.startTime;
+    }
     if (isFinite(du) && du > 0) r.durationMin = du; else delete r.durationMin;
     if (nt) r.note = nt; else delete r.note;
     save(); renderAll(); closeModal();
