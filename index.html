@@ -840,6 +840,22 @@
     min-width: 0;
     text-align: left;
   }
+  .ai-suggest-btn {
+    margin-top: 8px;
+    width: auto;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+    background: var(--primary-soft);
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    padding: 6px 11px;
+    cursor: pointer;
+    transition: filter .15s;
+  }
+  .ai-suggest-btn:hover { filter: brightness(1.05); }
+  .ai-suggest-btn:disabled { opacity: 0.6; cursor: default; }
+  .ai-suggest-status { display: block; font-size: 11px; color: var(--text-dim); margin-top: 6px; min-height: 14px; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   /* Grid children must be allowed to shrink below their content's intrinsic width,
      or wide native controls (e.g. iOS input[type=time]) overflow and overlap the next column. */
@@ -1118,7 +1134,23 @@
       <button class="seg-btn" data-settings-section="earn">🎯 Earn</button>
       <button class="seg-btn" data-settings-section="rewards">🎁 Rewards</button>
       <button class="seg-btn" data-settings-section="behavior">⚠️ Behavior</button>
+      <button class="seg-btn" data-settings-section="rules">📜 Rules</button>
       <button class="seg-btn" data-settings-section="data">☁️ Data</button>
+    </div>
+
+    <div class="settings-card" data-settings-section="rules">
+      <h3>House rules for AI</h3>
+      <p style="margin:0 0 10px; font-size:13px; color:var(--text-muted);">Write your philosophy in plain language — what you want to <strong>encourage</strong> or <strong>discourage</strong>, and how points/weights should feel. Every AI feature (the ⚡ quick-log match and the ✨ suggestions when adding categories, activities, rewards and behaviors) reads this for context.</p>
+      <textarea id="rules-input" rows="10" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--bg); color:var(--text); outline:none; font-family:inherit; font-size:14px; line-height:1.5; resize:vertical;" placeholder="e.g.
+• Reward kindness and reading the most.
+• Lying and disrespect should hurt the most.
+• Screen time is a privilege — keep it pricey.
+• Chores matter, but learning matters more.
+• Hygiene is a gentle nudge, not a big deal."></textarea>
+      <div style="display:flex; align-items:center; gap:10px; margin-top:10px;">
+        <button class="btn btn-primary" id="btn-rules-save">Save rules</button>
+        <span id="rules-status" style="font-size:12px; color:var(--text-dim);"></span>
+      </div>
     </div>
 
     <div class="settings-card" data-settings-section="people">
@@ -1456,8 +1488,8 @@ function defaultMisbehaviors() {
 function defaultData() {
   const catH = uid(), catL = uid(), catC = uid(), catK = uid(), catS = uid(), catB = uid();
   return {
-    version: 8,
-    settings: { theme: 'auto', activePersonId: null, lastSaved: null, lastSyncedAt: null, gistId: '', gistToken: '', anthropicKey: '' },
+    version: 9,
+    settings: { theme: 'auto', activePersonId: null, lastSaved: null, lastSyncedAt: null, gistId: '', gistToken: '', anthropicKey: '', aiRules: '' },
     people: [
       { id: uid(), name: 'Child 1', color: PERSON_COLORS[0], emoji: PERSON_EMOJIS[0] },
       { id: uid(), name: 'Child 2', color: PERSON_COLORS[1], emoji: PERSON_EMOJIS[1] },
@@ -1570,12 +1602,19 @@ function migrate(data) {
     if (data.settings && typeof data.settings.anthropicKey !== 'string') data.settings.anthropicKey = '';
     data.version = 8;
   }
+  if (data.version < 9) {
+    // v8 → v9: free-text "house rules" that AI features read for context (matching + suggestions).
+    // Lives in settings so it syncs across devices (it's family guidance, not a secret).
+    if (data.settings && typeof data.settings.aiRules !== 'string') data.settings.aiRules = '';
+    data.version = 9;
+  }
   // Always guarantee these arrays exist after migration
   if (!Array.isArray(data.rewards)) data.rewards = [];
   if (!Array.isArray(data.rewardCategories)) data.rewardCategories = defaultRewardCategories();
   if (!Array.isArray(data.misbehaviorCategories)) data.misbehaviorCategories = defaultMisbehaviorCategories();
   if (!Array.isArray(data.misbehaviors)) data.misbehaviors = [];
   if (!Array.isArray(data.records)) data.records = [];
+  if (data.settings && typeof data.settings.aiRules !== 'string') data.settings.aiRules = '';
   if (!Array.isArray(data.comments)) data.comments = [];
   return data;
 }
@@ -1927,7 +1966,9 @@ async function aiMatch(description) {
 
   const catalog = all.map(i => `${i.id} | ${i.kind} ${i.points >= 0 ? '+' : ''}${i.points} | ${i.name} (${i.category})`).join('\n');
   const nowLocal = toLocalDatetimeInput(Date.now());
-  const system = `You match a parent's plain-language description of a child's behavior to ONE item in this catalog (id | kind +/-pts | name (category)):\n\n${catalog}\n\nRules:\n- Pick the single best-fitting item.\n- "activity" items award points (positive); "misbehavior" items deduct (shown as negative).\n- Set confidence 0.0–1.0. If nothing fits well, return your best guess but set confidence below 0.4.\n- The current local date-time is ${nowLocal}. If the description mentions WHEN it happened (e.g. "5 hours ago", "yesterday at 3pm", "this morning at 8"), compute occurred_at as a local date-time in the SAME "YYYY-MM-DDTHH:MM" format. If no time is mentioned, omit occurred_at.\n- Use the match_item tool — do not respond in plain text.`;
+  const houseRules = (state.settings.aiRules || '').trim();
+  const rulesBlock = houseRules ? `The parent's house rules / philosophy (use as tie-breaking context):\n${houseRules}\n\n` : '';
+  const system = `You match a parent's plain-language description of a child's behavior to ONE item in this catalog (id | kind +/-pts | name (category)):\n\n${catalog}\n\n${rulesBlock}Rules:\n- Pick the single best-fitting item.\n- "activity" items award points (positive); "misbehavior" items deduct (shown as negative).\n- Set confidence 0.0–1.0. If nothing fits well, return your best guess but set confidence below 0.4.\n- The current local date-time is ${nowLocal}. If the description mentions WHEN it happened (e.g. "5 hours ago", "yesterday at 3pm", "this morning at 8"), compute occurred_at as a local date-time in the SAME "YYYY-MM-DDTHH:MM" format. If no time is mentioned, omit occurred_at.\n- Use the match_item tool — do not respond in plain text.`;
 
   const resp = await fetch(AI_API, {
     method: 'POST',
@@ -3178,9 +3219,29 @@ function renderSettings() {
   renderMisbehaviorCategoriesList();
   renderMisbehaviorsSettingsList();
   renderSyncCard();
+  renderRulesCard();
   document.getElementById('last-saved').textContent = state.settings.lastSaved
     ? 'Last saved: ' + new Date(state.settings.lastSaved).toLocaleString()
     : '';
+}
+
+function renderRulesCard() {
+  const input = document.getElementById('rules-input');
+  const status = document.getElementById('rules-status');
+  const btn = document.getElementById('btn-rules-save');
+  if (!input || !btn) return;
+  // Only overwrite the field when not focused, so typing isn't clobbered by a re-render.
+  if (document.activeElement !== input) input.value = state.settings.aiRules || '';
+  btn.onclick = () => {
+    state.settings.aiRules = input.value.trim();
+    save();
+    if (status) {
+      status.textContent = '✓ Saved · used by all AI features';
+      status.style.color = 'var(--success)';
+    }
+  };
+  // Clear the saved indicator once the user edits again.
+  input.oninput = () => { if (status) status.textContent = ''; };
 }
 
 function renderPeopleList() {
@@ -3493,6 +3554,99 @@ function openPersonModal(person) {
   setTimeout(() => document.getElementById('f-name').focus(), 50);
 }
 
+// Ask Claude to suggest the numeric settings (base points / cost / weight, plus category + emoji
+// for items) for a new entry, honoring the user's house rules and keeping the scale consistent
+// with existing entries. Returns the raw tool input; callers map the fields they need.
+async function aiSuggest(kind, name) {
+  await configLoadPromise;
+  const key = (runtimeAiKey || state.settings.anthropicKey || '').trim();
+  if (!key) throw new Error('No API key — add one in Settings → ☁️ Data.');
+  const cleanName = (name || '').trim();
+  if (!cleanName) throw new Error('Type a name first');
+  const rules = (state.settings.aiRules || '').trim();
+  const rulesBlock = `The parent's house rules / philosophy (honor these):\n${rules || '(none provided yet)'}\n\n`;
+
+  let context = '', guidance = '', props = {}, required = [];
+  const catLines = cats => cats.map(c => `${c.id} | ${c.name} | ×${c.weight}`).join('\n');
+  if (kind === 'activity') {
+    const cats = state.categories;
+    context = `Activity categories (id | name | weight):\n${catLines(cats)}\n\nExisting activities (name — base pts — category):\n${state.activities.slice(0,40).map(a => { const c = cats.find(x=>x.id===a.categoryId); return `${a.name} — ${a.basePoints} — ${c?c.name:''}`; }).join('\n')}\n\n`;
+    guidance = `Awarded points = base_points × category weight. Choose the best category_id from the list and whole-number base_points (typically 2–12) consistent with similar existing activities and the rules — things the rules encourage most should earn more effective points. Suggest one fitting emoji.`;
+    props = { base_points: { type:'integer', description:'whole-number base points (pre-weight)' }, category_id: { type:'string', description:'id of the best-fit category from the list' }, emoji: { type:'string', description:'one fitting emoji' } };
+    required = ['base_points','category_id'];
+  } else if (kind === 'misbehavior') {
+    const cats = state.misbehaviorCategories || [];
+    context = `Misbehavior categories (id | name | weight):\n${catLines(cats)}\n\nExisting items (name — base — category):\n${(state.misbehaviors||[]).slice(0,40).map(m => { const c = cats.find(x=>x.id===m.categoryId); return `${m.name} — ${m.basePoints} — ${c?c.name:''}`; }).join('\n')}\n\n`;
+    guidance = `Deducted points = base_points × category weight (bigger-weight categories are for worse violations). Choose the best category_id and whole-number base_points (typically 2–6) consistent with the rules — violations the rules most want to discourage should hit hardest. Suggest one fitting emoji.`;
+    props = { base_points: { type:'integer', description:'whole-number base deduction (pre-weight)' }, category_id: { type:'string', description:'id of best-fit misbehavior category' }, emoji: { type:'string', description:'one fitting emoji' } };
+    required = ['base_points','category_id'];
+  } else if (kind === 'reward') {
+    const cats = state.rewardCategories || [];
+    context = `Reward categories (id | name | weight):\n${catLines(cats)}\n\nExisting rewards (name — base cost — category):\n${(state.rewards||[]).slice(0,40).map(r => { const c = cats.find(x=>x.id===r.categoryId); return `${r.name} — ${r.cost} — ${c?c.name:''}`; }).join('\n')}\n\n`;
+    guidance = `Actual cost = base cost × category weight (weight <1 = encouraged/cheaper, >1 = discouraged/pricier). Choose the best category_id and a whole-number base cost consistent with existing rewards and the rules. Suggest one fitting emoji.`;
+    props = { cost: { type:'integer', description:'whole-number base cost (pre-weight)' }, category_id: { type:'string', description:'id of best-fit reward category' }, emoji: { type:'string', description:'one fitting emoji' } };
+    required = ['cost','category_id'];
+  } else if (kind === 'category' || kind === 'rewardCategory' || kind === 'misbehaviorCategory') {
+    const cats = kind === 'category' ? state.categories : kind === 'rewardCategory' ? (state.rewardCategories||[]) : (state.misbehaviorCategories||[]);
+    context = `Existing categories (name | weight):\n${cats.map(c => `${c.name} | ×${c.weight}`).join('\n')}\n\n`;
+    guidance = kind === 'rewardCategory'
+      ? `Weight multiplies reward cost: below 1 encourages (cheaper), above 1 discourages (pricier). Suggest a weight (about 0.5–2) for this category, consistent with the existing ones and the rules.`
+      : kind === 'misbehaviorCategory'
+      ? `Weight multiplies deductions: higher = harder hit for worse violations. Suggest a weight (about 1–3), consistent with the existing ones and the rules.`
+      : `Weight multiplies activity base points: higher = more encouraged. Suggest a weight (about 0.5–3), consistent with the existing ones and the rules.`;
+    props = { weight: { type:'number', description:'point/cost multiplier (one decimal)' } };
+    required = ['weight'];
+  } else {
+    throw new Error('Unknown suggestion kind');
+  }
+
+  const system = `You suggest sensible numeric settings for a child behavior-and-reward app.\n\n${rulesBlock}${context}${guidance}\n\nUse the suggest tool — do not reply in plain text.`;
+  const resp = await fetch(AI_API, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({
+      model: AI_MODEL, max_tokens: 256, system,
+      tools: [{ name: 'suggest', description: 'Suggest the numeric settings for this entry', input_schema: { type:'object', properties: props, required } }],
+      tool_choice: { type:'tool', name:'suggest' },
+      messages: [{ role:'user', content: `Name: ${cleanName}` }]
+    })
+  });
+  if (!resp.ok) {
+    let detail = '';
+    try { const j = await resp.json(); detail = (j.error && j.error.message) || JSON.stringify(j); } catch (_) { detail = await resp.text(); }
+    throw new Error(`API ${resp.status}: ${detail.slice(0, 180)}`);
+  }
+  const data = await resp.json();
+  const tool = (data.content || []).find(c => c.type === 'tool_use');
+  if (!tool || !tool.input) throw new Error('Unexpected AI response');
+  return tool.input;
+}
+
+// HTML for the ✨ suggest button + status line, dropped inside a modal's name form-group.
+function aiSuggestControl(label) {
+  return `<button type="button" id="f-suggest" class="ai-suggest-btn">✨ ${escapeHtml(label)}</button><span id="f-suggest-status" class="ai-suggest-status"></span>`;
+}
+// Wire the ✨ button: read #f-name, call aiSuggest(kind), hand the result to apply().
+function wireAiSuggest(kind, apply) {
+  const btn = document.getElementById('f-suggest');
+  const status = document.getElementById('f-suggest-status');
+  if (!btn) return;
+  btn.onclick = async () => {
+    const name = (document.getElementById('f-name').value || '').trim();
+    if (!name) { if (status) status.textContent = 'Type a name first.'; return; }
+    btn.disabled = true;
+    if (status) { status.textContent = '✨ Thinking…'; status.style.color = 'var(--text-dim)'; }
+    try {
+      apply(await aiSuggest(kind, name));
+      if (status) { status.textContent = '✓ Suggested — adjust if needed'; status.style.color = 'var(--success)'; }
+    } catch (e) {
+      if (status) { status.textContent = e.message; status.style.color = 'var(--danger)'; }
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+
 function openCategoryModal(category) {
   const isNew = !category;
   const c = category || { id: uid(), name: '', weight: 1, color: CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length] };
@@ -3501,6 +3655,7 @@ function openCategoryModal(category) {
     <div class="form-group">
       <label>Name</label>
       <input id="f-name" type="text" value="${escapeHtml(c.name)}" placeholder="e.g. Homework">
+      ${aiSuggestControl('Suggest weight')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3516,6 +3671,9 @@ function openCategoryModal(category) {
       Weight multiplies activity base points. e.g. activity = 5 pts × weight 2 = 10 pts.
     </div>`;
   renderSwatches('f-colors', CATEGORY_COLORS, c.color);
+  wireAiSuggest('category', s => {
+    if (s.weight != null) document.getElementById('f-weight').value = Math.max(0.1, Number(s.weight));
+  });
   modalSave.onclick = () => {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Name is required'); return; }
@@ -3539,6 +3697,7 @@ function openActivityModal(activity) {
     <div class="form-group">
       <label>Activity name</label>
       <input id="f-name" type="text" value="${escapeHtml(a.name)}" placeholder="e.g. Brush teeth">
+      ${aiSuggestControl('Suggest points & category')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3564,6 +3723,12 @@ function openActivityModal(activity) {
   document.getElementById('f-points').oninput = updatePreview;
   document.getElementById('f-cat').onchange = updatePreview;
   updatePreview();
+  wireAiSuggest('activity', s => {
+    if (s.base_points != null) document.getElementById('f-points').value = Math.max(0, Math.round(Number(s.base_points)));
+    if (s.category_id && state.categories.find(c => c.id === s.category_id)) document.getElementById('f-cat').value = s.category_id;
+    if (s.emoji) document.getElementById('f-emoji').value = s.emoji;
+    updatePreview();
+  });
   modalSave.onclick = () => {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Name is required'); return; }
@@ -3586,6 +3751,7 @@ function openRewardCategoryModal(category) {
     <div class="form-group">
       <label>Name</label>
       <input id="f-name" type="text" value="${escapeHtml(c.name)}" placeholder="e.g. Materials">
+      ${aiSuggestControl('Suggest weight')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3601,6 +3767,9 @@ function openRewardCategoryModal(category) {
       Weight is a multiplier on each reward's base cost. <strong>Below 1</strong> = encouraged (cheaper); <strong>above 1</strong> = discouraged (more expensive). e.g. Materials ×1.5 means a 100-pt reward in this category actually costs 150 pts.
     </div>`;
   renderSwatches('f-colors', CATEGORY_COLORS, c.color);
+  wireAiSuggest('rewardCategory', s => {
+    if (s.weight != null) document.getElementById('f-weight').value = Math.max(0.1, Number(s.weight));
+  });
   modalSave.onclick = () => {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Name is required'); return; }
@@ -3633,6 +3802,7 @@ function openRewardModal(reward) {
     <div class="form-group">
       <label>Reward name</label>
       <input id="f-name" type="text" value="${escapeHtml(r.name)}" placeholder="e.g. Ice cream">
+      ${aiSuggestControl('Suggest cost & category')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3667,6 +3837,12 @@ function openRewardModal(reward) {
   document.getElementById('f-cost').oninput = updatePreview;
   document.getElementById('f-rcat').onchange = updatePreview;
   updatePreview();
+  wireAiSuggest('reward', s => {
+    if (s.cost != null) document.getElementById('f-cost').value = Math.max(0, Math.round(Number(s.cost)));
+    if (s.category_id && state.rewardCategories.find(c => c.id === s.category_id)) document.getElementById('f-rcat').value = s.category_id;
+    if (s.emoji) document.getElementById('f-emoji').value = s.emoji;
+    updatePreview();
+  });
   modalSave.onclick = () => {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Name is required'); return; }
@@ -3690,6 +3866,7 @@ function openMisbehaviorCategoryModal(category) {
     <div class="form-group">
       <label>Name</label>
       <input id="f-name" type="text" value="${escapeHtml(c.name)}" placeholder="e.g. Disrespect">
+      ${aiSuggestControl('Suggest weight')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3705,6 +3882,9 @@ function openMisbehaviorCategoryModal(category) {
       Weight is a deduction multiplier. <strong>Higher = harder hit.</strong> e.g. Disrespect ×3 means a base-5 deduction actually subtracts 15 pts; Hygiene neglect ×1 subtracts only 5.
     </div>`;
   renderSwatches('f-colors', CATEGORY_COLORS, c.color);
+  wireAiSuggest('misbehaviorCategory', s => {
+    if (s.weight != null) document.getElementById('f-weight').value = Math.max(0.1, Number(s.weight));
+  });
   modalSave.onclick = () => {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Name is required'); return; }
@@ -3737,6 +3917,7 @@ function openMisbehaviorModal(misbehavior) {
     <div class="form-group">
       <label>Behavior name</label>
       <input id="f-name" type="text" value="${escapeHtml(m.name)}" placeholder="e.g. Lied to parent">
+      ${aiSuggestControl('Suggest deduction & category')}
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -3764,6 +3945,12 @@ function openMisbehaviorModal(misbehavior) {
   document.getElementById('f-points').oninput = updatePreview;
   document.getElementById('f-mcat').onchange = updatePreview;
   updatePreview();
+  wireAiSuggest('misbehavior', s => {
+    if (s.base_points != null) document.getElementById('f-points').value = Math.max(0, Math.round(Number(s.base_points)));
+    if (s.category_id && (state.misbehaviorCategories||[]).find(c => c.id === s.category_id)) document.getElementById('f-mcat').value = s.category_id;
+    if (s.emoji) document.getElementById('f-emoji').value = s.emoji;
+    updatePreview();
+  });
   modalSave.onclick = () => {
     const name = document.getElementById('f-name').value.trim();
     if (!name) { alert('Name is required'); return; }
@@ -4204,7 +4391,7 @@ document.getElementById('btn-reset-all').onclick = () => {
 /* ---------- Router (hash-based: works on GitHub Pages, no server rewrites) ---------- */
 const ROUTE_TABS    = ['log','dashboard','rewards','search','settings'];
 const ROUTE_LOG_SUB = ['recent','good','misbehavior'];
-const ROUTE_SET_SUB = ['people','earn','rewards','behavior','data'];
+const ROUTE_SET_SUB = ['people','earn','rewards','behavior','rules','data'];
 
 function applyRoute() {
   const hash = (location.hash || '').replace(/^#\/?/, '');
