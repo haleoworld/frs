@@ -1968,7 +1968,7 @@ async function aiMatch(description) {
   const nowLocal = toLocalDatetimeInput(Date.now());
   const houseRules = (state.settings.aiRules || '').trim();
   const rulesBlock = houseRules ? `The parent's house rules / philosophy (use as tie-breaking context):\n${houseRules}\n\n` : '';
-  const system = `You match a parent's plain-language description of a child's behavior to ONE item in this catalog (id | kind +/-pts | name (category)):\n\n${catalog}\n\n${rulesBlock}Rules:\n- Pick the single best-fitting item.\n- "activity" items award points (positive); "misbehavior" items deduct (shown as negative).\n- Set confidence 0.0–1.0. If nothing fits well, return your best guess but set confidence below 0.4.\n- The current local date-time is ${nowLocal}. If the description mentions WHEN it happened (e.g. "5 hours ago", "yesterday at 3pm", "this morning at 8"), compute occurred_at as a local date-time in the SAME "YYYY-MM-DDTHH:MM" format. If no time is mentioned, omit occurred_at.\n- Use the match_item tool — do not respond in plain text.`;
+  const system = `You match a parent's plain-language description of a child's behavior to ONE item in this catalog (id | kind +/-pts | name (category)):\n\n${catalog}\n\n${rulesBlock}Rules:\n- Pick the single best-fitting item.\n- "activity" items award points (positive); "misbehavior" items deduct (shown as negative).\n- Set confidence 0.0–1.0. If nothing fits well, return your best guess but set confidence below 0.4.\n- The current local date-time is ${nowLocal}. If the description mentions WHEN it happened (e.g. "5 hours ago", "yesterday at 3pm", "this morning at 8"), compute occurred_at as a local date-time in the SAME "YYYY-MM-DDTHH:MM" format. If no time is mentioned, omit occurred_at.\n- If the description states how LONG it lasted (e.g. "for 20 minutes", "half an hour"), set duration_min to that many whole minutes; otherwise omit it.\n- If the description carries specific detail worth keeping (e.g. "read Charlotte's Web ch. 3"), set note to a short, tidy summary of just that detail (drop the time/duration words). Otherwise omit note.\n- Use the match_item tool — do not respond in plain text.`;
 
   const resp = await fetch(AI_API, {
     method: 'POST',
@@ -1991,6 +1991,8 @@ async function aiMatch(description) {
             item_id: { type: 'string', description: 'The id of the matched item from the catalog' },
             confidence: { type: 'number', description: '0.0 (no fit) to 1.0 (perfect fit)' },
             occurred_at: { type: 'string', description: 'Local date-time "YYYY-MM-DDTHH:MM" the behavior happened, ONLY if the description states a time (e.g. "5 hours ago"). Omit if no time is mentioned.' },
+            duration_min: { type: 'integer', description: 'Whole minutes it lasted, ONLY if the description says so (e.g. "for 20 minutes"). Omit otherwise.' },
+            note: { type: 'string', description: 'Short tidy summary of any specific detail worth keeping (e.g. "read book chapter 3"), with time/duration words removed. Omit if there is no such detail.' },
           },
           required: ['item_id', 'confidence']
         }
@@ -2009,10 +2011,16 @@ async function aiMatch(description) {
   const data = await resp.json();
   const tool = (data.content || []).find(c => c.type === 'tool_use');
   if (!tool || !tool.input) throw new Error('Unexpected response shape');
-  const { item_id, confidence, occurred_at } = tool.input;
+  const { item_id, confidence, occurred_at, duration_min, note } = tool.input;
   const matched = all.find(i => i.id === item_id);
   if (!matched) throw new Error('AI returned an unknown id');
-  return { ...matched, confidence: typeof confidence === 'number' ? confidence : 0.5, occurredAt: (typeof occurred_at === 'string' && occurred_at.trim()) ? occurred_at.trim() : null };
+  return {
+    ...matched,
+    confidence: typeof confidence === 'number' ? confidence : 0.5,
+    occurredAt: (typeof occurred_at === 'string' && occurred_at.trim()) ? occurred_at.trim() : null,
+    durationMin: (typeof duration_min === 'number' && duration_min > 0) ? Math.round(duration_min) : null,
+    note: (typeof note === 'string' && note.trim()) ? note.trim() : null,
+  };
 }
 
 function openAiLogModal() {
@@ -3647,6 +3655,37 @@ function wireAiSuggest(kind, apply) {
   };
 }
 
+// Lets an item modal (activity / reward / behavior) create a new category inline without leaving:
+// adds a "＋ New category…" option to the <select>; choosing it prompts for a name, suggests a
+// rules-aware weight via AI (falling back to 1 if no key/failure), persists it, then selects it.
+function wireInlineCategory(cfg) {
+  const sel = document.getElementById(cfg.selectId);
+  if (!sel) return;
+  const NEW = '__newcat__';
+  const optionsHtml = selectedId => cfg.list().map(c =>
+    `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHtml(c.name)} (×${c.weight})</option>`
+  ).join('') + `<option value="${NEW}">＋ New category…</option>`;
+  if (!sel.querySelector(`option[value="${NEW}"]`)) {
+    const o = document.createElement('option'); o.value = NEW; o.textContent = '＋ New category…'; sel.appendChild(o);
+  }
+  let prev = sel.value;
+  sel.onchange = async () => {
+    if (sel.value !== NEW) { prev = sel.value; if (cfg.onChange) cfg.onChange(); return; }
+    const name = (window.prompt('New category name:') || '').trim();
+    if (!name) { sel.value = prev; return; }
+    sel.disabled = true;
+    let weight = 1;
+    try { const s = await aiSuggest(cfg.kind, name); if (s && s.weight != null) weight = Math.max(0.1, Number(s.weight)); } catch (_) {}
+    const cat = { id: uid(), name, weight, color: CATEGORY_COLORS[cfg.list().length % CATEGORY_COLORS.length] };
+    cfg.list().push(cat);
+    save();
+    sel.innerHTML = optionsHtml(cat.id);
+    sel.disabled = false;
+    prev = cat.id;
+    if (cfg.onChange) cfg.onChange();
+  };
+}
+
 function openCategoryModal(category) {
   const isNew = !category;
   const c = category || { id: uid(), name: '', weight: 1, color: CATEGORY_COLORS[state.categories.length % CATEGORY_COLORS.length] };
@@ -3721,7 +3760,7 @@ function openActivityModal(activity) {
     document.getElementById('preview-pts').textContent = `Awards ${Math.round(base * w)} points per log (${base} × ${w}).`;
   }
   document.getElementById('f-points').oninput = updatePreview;
-  document.getElementById('f-cat').onchange = updatePreview;
+  wireInlineCategory({ selectId: 'f-cat', kind: 'category', list: () => state.categories, onChange: updatePreview });
   updatePreview();
   wireAiSuggest('activity', s => {
     if (s.base_points != null) document.getElementById('f-points').value = Math.max(0, Math.round(Number(s.base_points)));
@@ -3835,7 +3874,7 @@ function openRewardModal(reward) {
       (w < 1 ? 'Encouraged — cheaper than base.' : w > 1 ? 'Discouraged — more expensive than base.' : 'Normal — no adjustment.');
   }
   document.getElementById('f-cost').oninput = updatePreview;
-  document.getElementById('f-rcat').onchange = updatePreview;
+  wireInlineCategory({ selectId: 'f-rcat', kind: 'rewardCategory', list: () => state.rewardCategories, onChange: updatePreview });
   updatePreview();
   wireAiSuggest('reward', s => {
     if (s.cost != null) document.getElementById('f-cost').value = Math.max(0, Math.round(Number(s.cost)));
@@ -3943,7 +3982,7 @@ function openMisbehaviorModal(misbehavior) {
       `Deducts <strong style="color:var(--danger)">−${Math.round(base * w)} pts</strong> per log (${base} × ${w}).`;
   }
   document.getElementById('f-points').oninput = updatePreview;
-  document.getElementById('f-mcat').onchange = updatePreview;
+  wireInlineCategory({ selectId: 'f-mcat', kind: 'misbehaviorCategory', list: () => state.misbehaviorCategories, onChange: updatePreview });
   updatePreview();
   wireAiSuggest('misbehavior', s => {
     if (s.base_points != null) document.getElementById('f-points').value = Math.max(0, Math.round(Number(s.base_points)));
@@ -4078,11 +4117,19 @@ function openRecordDetailsModal(record) {
     try {
       pendingMatch = await aiMatch(text);
       status.textContent = '';
-      // If the description named a time ("5 hours ago"), pre-fill the date & time field.
-      if (pendingMatch && pendingMatch.occurredAt) {
-        const t = Date.parse(pendingMatch.occurredAt);
-        const fs = document.getElementById('f-start');
-        if (fs && !isNaN(t)) fs.value = toLocalDatetimeInput(t);
+      if (pendingMatch) {
+        // If the description named a time ("5 hours ago"), pre-fill the date & time field.
+        if (pendingMatch.occurredAt) {
+          const t = Date.parse(pendingMatch.occurredAt);
+          const fs = document.getElementById('f-start');
+          if (fs && !isNaN(t)) fs.value = toLocalDatetimeInput(t);
+        }
+        // Auto-fill duration + note from the description — only when the field is empty, so a
+        // value the user already typed is never clobbered.
+        const fd = document.getElementById('f-dur');
+        if (fd && pendingMatch.durationMin && !fd.value.trim()) fd.value = pendingMatch.durationMin;
+        const fn = document.getElementById('f-note');
+        if (fn && pendingMatch.note && !fn.value.trim()) fn.value = pendingMatch.note;
       }
       renderMatch();
     } catch (e) {
