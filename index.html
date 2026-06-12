@@ -856,6 +856,20 @@
   .ai-suggest-btn:hover { filter: brightness(1.05); }
   .ai-suggest-btn:disabled { opacity: 0.6; cursor: default; }
   .ai-suggest-status { display: block; font-size: 11px; color: var(--text-dim); margin-top: 6px; min-height: 14px; }
+  /* AI description box with an in-box "run" button (manual trigger instead of auto-firing). */
+  .ai-input-wrap { position: relative; }
+  .ai-input-wrap textarea { padding-bottom: 46px; }
+  .ai-go-btn {
+    position: absolute; right: 8px; bottom: 8px;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 13px; font-weight: 700; color: #fff;
+    background: linear-gradient(135deg, var(--primary), #9333ea);
+    border: none; border-radius: 9px; padding: 8px 13px; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+    transition: transform .1s, opacity .15s;
+  }
+  .ai-go-btn:active { transform: scale(0.96); }
+  .ai-go-btn:disabled { opacity: 0.5; cursor: default; }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   /* Grid children must be allowed to shrink below their content's intrinsic width,
      or wide native controls (e.g. iOS input[type=time]) overflow and overlap the next column. */
@@ -2033,7 +2047,10 @@ function openAiLogModal() {
     <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">For <strong>${escapeHtml(p.name)}</strong></div>
     <div class="form-group">
       <label>Describe what they did</label>
-      <textarea id="ai-desc" rows="2" placeholder="e.g. brushed teeth, threw a tantrum, refused to do homework"></textarea>
+      <div class="ai-input-wrap">
+        <textarea id="ai-desc" rows="2" placeholder="e.g. brushed teeth, threw a tantrum, refused to do homework"></textarea>
+        <button type="button" class="ai-go-btn" id="ai-desc-go">✨ Match</button>
+      </div>
     </div>
     <div id="ai-status" style="font-size:13px; min-height:20px; color:var(--text-muted);"></div>
     <div id="ai-result" style="display:none;"></div>`;
@@ -2112,8 +2129,8 @@ function openAiLogModal() {
     }
   };
 
-  let timer = null;
-  desc.oninput = () => { clearTimeout(timer); timer = setTimeout(findMatch, 700); };
+  // Manual trigger only — runs on the in-box button or ⌘/Ctrl+Enter, never while typing.
+  document.getElementById('ai-desc-go').onclick = findMatch;
   desc.onkeydown = (e) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); findMatch(); }
   };
@@ -3761,7 +3778,10 @@ function openAiCreateModal(prefill) {
     <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">Describe what you want to add — Claude figures out whether it's an earn, a deduction, or a reward, names it, picks a category, and sets the points/cost from your 📜 Rules.</div>
     <div class="form-group">
       <label>Describe it</label>
-      <textarea id="ac-desc" rows="2" placeholder="e.g. reward: a trip to the trampoline park · or: putting dirty clothes in the hamper · or: interrupting when adults talk"></textarea>
+      <div class="ai-input-wrap">
+        <textarea id="ac-desc" rows="2" placeholder="e.g. reward: a trip to the trampoline park · or: putting dirty clothes in the hamper · or: interrupting when adults talk"></textarea>
+        <button type="button" class="ai-go-btn" id="ac-desc-go">✨ Generate</button>
+      </div>
     </div>
     <div id="ac-status" style="font-size:13px; min-height:20px; color:var(--text-muted);"></div>
     <div id="ac-result" style="display:none;"></div>`;
@@ -3801,8 +3821,8 @@ function openAiCreateModal(prefill) {
     catch (e) { status.innerHTML = `<span style="color:var(--danger)">${escapeHtml(e.message)}</span>`; }
     finally { inFlight = false; }
   };
-  let timer = null;
-  desc.oninput = () => { clearTimeout(timer); timer = setTimeout(generate, 800); };
+  // Manual trigger only — the in-box button or ⌘/Ctrl+Enter, never while typing.
+  document.getElementById('ac-desc-go').onclick = generate;
   desc.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); generate(); } };
 
   modalSave.textContent = 'Create it';
@@ -4205,7 +4225,10 @@ function openRecordDetailsModal(record) {
     </div>
     <div class="form-group">
       <label>Change activity / behavior <span style="text-transform:none; font-weight:400; color:var(--text-dim);">(optional)</span></label>
-      <textarea id="rd-desc" rows="2" placeholder="Describe what they did to re-match — e.g. brushed teeth, threw a tantrum"></textarea>
+      <div class="ai-input-wrap">
+        <textarea id="rd-desc" rows="2" placeholder="Describe what they did to re-match — e.g. brushed teeth, threw a tantrum"></textarea>
+        <button type="button" class="ai-go-btn" id="rd-desc-go">✨ Match</button>
+      </div>
     </div>
     <div id="rd-ai-status" style="font-size:12px; min-height:16px; color:var(--text-muted); margin:-8px 0 8px;"></div>
     <div id="rd-ai-result" style="display:none;"></div>
@@ -4308,8 +4331,8 @@ function openRecordDetailsModal(record) {
     }
   };
 
-  let timer = null;
-  desc.oninput = () => { clearTimeout(timer); timer = setTimeout(findMatch, 700); };
+  // Manual trigger only — the in-box button or ⌘/Ctrl+Enter, never while typing.
+  document.getElementById('rd-desc-go').onclick = findMatch;
   desc.onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); findMatch(); } };
 
   modalSave.textContent = 'Save';
