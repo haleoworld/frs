@@ -1138,6 +1138,8 @@
       <button class="seg-btn" data-settings-section="data">☁️ Data</button>
     </div>
 
+    <button class="btn btn-primary" id="btn-ai-create" data-action="ai-create" style="width:100%; margin-bottom:14px; justify-content:center;">✨ Create with AI — just describe it</button>
+
     <div class="settings-card" data-settings-section="rules">
       <h3>House rules for AI</h3>
       <p style="margin:0 0 10px; font-size:13px; color:var(--text-muted);">Write your philosophy in plain language — what you want to <strong>encourage</strong> or <strong>discourage</strong>, and how points/weights should feel. Every AI feature (the ⚡ quick-log match and the ✨ suggestions when adding categories, activities, rewards and behaviors) reads this for context.</p>
@@ -3655,6 +3657,145 @@ function wireAiSuggest(kind, apply) {
   };
 }
 
+// One-shot create: from a plain-language description, Claude decides the type (earn activity /
+// deduct misbehavior / reward), names it, picks or proposes a category, and sets points/cost +
+// emoji — all honoring the house rules. Returns the raw tool input; commitAiCreate() applies it.
+async function aiCreate(description) {
+  await configLoadPromise;
+  const key = (runtimeAiKey || state.settings.anthropicKey || '').trim();
+  if (!key) throw new Error('No API key — add one in Settings → ☁️ Data.');
+  const text = (description || '').trim();
+  if (!text) throw new Error('Describe what to create first');
+  const rules = (state.settings.aiRules || '').trim();
+  const rulesBlock = `The parent's house rules / philosophy (honor these):\n${rules || '(none provided yet)'}\n\n`;
+  const lines = cats => cats.map(c => `${c.id} | ${c.name} | ×${c.weight}`).join('\n');
+  const system = `You create ONE new entry for a child behaviour-and-reward app from the parent's description.\n\n${rulesBlock}Decide the type:\n- "activity" = a good behaviour that EARNS points.\n- "misbehavior" = a bad behaviour that DEDUCTS points.\n- "reward" = something the child redeems points for.\n\nActivity categories (earn) [id | name | weight]:\n${lines(state.categories)}\n\nMisbehavior categories (deduct):\n${lines(state.misbehaviorCategories||[])}\n\nReward categories (redeem):\n${lines(state.rewardCategories||[])}\n\nRules:\n- Choose an existing category_id from the matching type's list when one fits. If none fits, leave category_id empty and give new_category_name (+ new_category_weight on the same scale, guided by the house rules).\n- base_value = whole-number base points (activity/misbehavior) or base cost (reward), consistent with the rules and a sensible scale.\n- name = a short tidy entry name. emoji = one fitting emoji.\n- Use the create_entry tool — do not reply in plain text.`;
+  const resp = await fetch(AI_API, {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({
+      model: AI_MODEL, max_tokens: 320, system,
+      tools: [{ name:'create_entry', description:'Create one entry', input_schema: { type:'object', properties: {
+        type: { type:'string', enum:['activity','misbehavior','reward'], description:'earn / deduct / redeem' },
+        name: { type:'string', description:'short tidy entry name' },
+        emoji: { type:'string', description:'one fitting emoji' },
+        base_value: { type:'integer', description:'whole-number base points or base cost (pre-weight)' },
+        category_id: { type:'string', description:'existing category id from the matching type, or empty to propose a new one' },
+        new_category_name: { type:'string', description:'name for a new category if none fit (else empty)' },
+        new_category_weight: { type:'number', description:'weight for the proposed new category (if any)' },
+      }, required:['type','name','base_value'] } }],
+      tool_choice: { type:'tool', name:'create_entry' },
+      messages: [{ role:'user', content: text }]
+    })
+  });
+  if (!resp.ok) {
+    let detail = '';
+    try { const j = await resp.json(); detail = (j.error && j.error.message) || JSON.stringify(j); } catch (_) { detail = await resp.text(); }
+    throw new Error(`API ${resp.status}: ${detail.slice(0, 180)}`);
+  }
+  const data = await resp.json();
+  const tool = (data.content || []).find(c => c.type === 'tool_use');
+  if (!tool || !tool.input) throw new Error('Unexpected AI response');
+  return tool.input;
+}
+
+// Resolve the category/weight an aiCreate suggestion will use (without mutating state) — for preview.
+function aiCreateResolved(g) {
+  const type = g.type;
+  const catArr = type === 'misbehavior' ? (state.misbehaviorCategories||[]) : type === 'reward' ? (state.rewardCategories||[]) : state.categories;
+  let cat = g.category_id ? catArr.find(c => c.id === g.category_id) : null;
+  let isNewCat = false, weight = 1, catName = '';
+  if (cat) { weight = cat.weight; catName = cat.name; }
+  else if (g.new_category_name && g.new_category_name.trim()) { isNewCat = true; weight = Math.max(0.1, Number(g.new_category_weight) || 1); catName = g.new_category_name.trim(); }
+  else if (catArr[0]) { weight = catArr[0].weight; catName = catArr[0].name; }
+  const base = Math.max(0, Math.round(Number(g.base_value) || 0));
+  return { type, catName, isNewCat, weight, base, effective: Math.round(base * weight) };
+}
+
+// Commit an aiCreate suggestion: create the category (if new) + the item, persist, re-render.
+function commitAiCreate(g) {
+  const type = g.type;
+  let catArr, itemArr;
+  if (type === 'activity') { catArr = state.categories; itemArr = state.activities; }
+  else if (type === 'misbehavior') { catArr = (state.misbehaviorCategories = state.misbehaviorCategories || []); itemArr = (state.misbehaviors = state.misbehaviors || []); }
+  else if (type === 'reward') { catArr = (state.rewardCategories = state.rewardCategories || []); itemArr = (state.rewards = state.rewards || []); }
+  else throw new Error('Unknown type from AI');
+  let categoryId = (g.category_id && catArr.find(c => c.id === g.category_id)) ? g.category_id : null;
+  if (!categoryId && g.new_category_name && g.new_category_name.trim()) {
+    const cat = { id: uid(), name: g.new_category_name.trim(), weight: Math.max(0.1, Number(g.new_category_weight) || 1), color: CATEGORY_COLORS[catArr.length % CATEGORY_COLORS.length] };
+    catArr.push(cat); categoryId = cat.id;
+  }
+  if (!categoryId) categoryId = catArr[0] && catArr[0].id;
+  if (!categoryId) throw new Error('No category available — add one first.');
+  const val = Math.max(0, Math.round(Number(g.base_value) || 0));
+  const name = (g.name || '').trim() || 'Untitled';
+  const emoji = (g.emoji || '').trim();
+  if (type === 'reward') itemArr.push({ id: uid(), name, emoji: emoji || '🎁', cost: val, color: PERSON_COLORS[itemArr.length % PERSON_COLORS.length], categoryId });
+  else itemArr.push({ id: uid(), name, emoji: emoji || (type === 'misbehavior' ? '⚠️' : '⭐'), basePoints: val, categoryId });
+  save(); renderAll();
+  return name;
+}
+
+function openAiCreateModal() {
+  modalTitle.textContent = '✨ Create with AI';
+  modalBody.innerHTML = `
+    <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">Describe what you want to add — Claude figures out whether it's an earn, a deduction, or a reward, names it, picks a category, and sets the points/cost from your 📜 Rules.</div>
+    <div class="form-group">
+      <label>Describe it</label>
+      <textarea id="ac-desc" rows="2" placeholder="e.g. reward: a trip to the trampoline park · or: putting dirty clothes in the hamper · or: interrupting when adults talk"></textarea>
+    </div>
+    <div id="ac-status" style="font-size:13px; min-height:20px; color:var(--text-muted);"></div>
+    <div id="ac-result" style="display:none;"></div>`;
+  const desc = document.getElementById('ac-desc');
+  const status = document.getElementById('ac-status');
+  const result = document.getElementById('ac-result');
+  let suggestion = null, inFlight = false;
+  const effectiveKey = () => (runtimeAiKey || state.settings.anthropicKey || '').trim();
+  if (!effectiveKey()) status.innerHTML = '<span style="color:var(--danger)">No API key. Add one in Settings → ☁️ Data.</span>';
+
+  const renderResult = () => {
+    if (!suggestion) { result.style.display = 'none'; result.innerHTML = ''; return; }
+    const r = aiCreateResolved(suggestion);
+    const badge = r.type === 'activity' ? ['EARN','var(--success)','var(--success-soft)'] : r.type === 'reward' ? ['REWARD','var(--primary)','var(--primary-soft)'] : ['DEDUCT','var(--danger)','var(--danger-soft)'];
+    const valLabel = r.type === 'reward' ? `costs ${r.effective} pts` : r.type === 'misbehavior' ? `−${r.effective} pts` : `+${r.effective} pts`;
+    result.innerHTML = `
+      <div style="border:1px solid var(--primary); border-radius:12px; padding:14px; margin-top:10px; background:var(--bg-soft);">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <span style="font-size:30px;">${(suggestion.emoji||'✨').trim()||'✨'}</span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700;">${escapeHtml((suggestion.name||'').trim())}</div>
+            <div style="font-size:12px; color:var(--text-muted);">${escapeHtml(r.catName)}${r.isNewCat?' <span style="color:var(--primary)">(new category ×'+r.weight+')</span>':' (×'+r.weight+')'}</div>
+          </div>
+          <span style="font-weight:700; padding:6px 12px; border-radius:999px; color:${badge[1]}; background:${badge[2]};">${valLabel}</span>
+        </div>
+        <div style="font-size:11px; color:var(--text-dim); margin-top:8px;"><span style="font-weight:700; color:${badge[1]}">${badge[0]}</span> · base ${r.base} × ×${r.weight}${r.isNewCat?' · a new category will be created':''}</div>
+      </div>`;
+    result.style.display = '';
+  };
+  const generate = async () => {
+    const text = desc.value.trim();
+    suggestion = null; renderResult();
+    if (!text) { status.textContent = ''; return; }
+    if (!effectiveKey() || inFlight) return;
+    inFlight = true; status.textContent = 'Thinking…';
+    try { suggestion = await aiCreate(text); status.textContent = ''; renderResult(); }
+    catch (e) { status.innerHTML = `<span style="color:var(--danger)">${escapeHtml(e.message)}</span>`; }
+    finally { inFlight = false; }
+  };
+  let timer = null;
+  desc.oninput = () => { clearTimeout(timer); timer = setTimeout(generate, 800); };
+  desc.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); generate(); } };
+
+  modalSave.textContent = 'Create it';
+  modalSave.onclick = () => {
+    if (!suggestion) { alert('Describe something and wait for the preview first.'); return; }
+    try { const name = commitAiCreate(suggestion); closeModal(); toast(`Created “${name}”`); }
+    catch (e) { alert(e.message); }
+  };
+  openModal();
+  setTimeout(() => desc.focus(), 50);
+}
+
 // Lets an item modal (activity / reward / behavior) create a new category inline without leaving:
 // adds a "＋ New category…" option to the <select>; choosing it prompts for a name, suggests a
 // rules-aware weight via AI (falling back to 1 if no key/failure), persists it, then selects it.
@@ -4197,6 +4338,7 @@ document.querySelectorAll('[data-action]').forEach(btn => {
     if (a === 'add-reward') openRewardModal();
     if (a === 'add-misbehavior-category') openMisbehaviorCategoryModal();
     if (a === 'add-misbehavior') openMisbehaviorModal();
+    if (a === 'ai-create') openAiCreateModal();
   });
 });
 
