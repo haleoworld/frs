@@ -2015,7 +2015,7 @@ async function aiMatch(description) {
   if (!tool || !tool.input) throw new Error('Unexpected response shape');
   const { item_id, confidence, occurred_at, duration_min, note } = tool.input;
   const matched = all.find(i => i.id === item_id);
-  if (!matched) throw new Error('AI returned an unknown id');
+  if (!matched) return null;   // no catalog item fit — callers offer to create one instead
   return {
     ...matched,
     confidence: typeof confidence === 'number' ? confidence : 0.5,
@@ -2068,9 +2068,28 @@ function openAiLogModal() {
           </div>
           <span style="font-weight:700; padding:6px 12px; border-radius:999px; ${isMis ? 'color:var(--danger); background:var(--danger-soft)' : 'color:var(--success); background:var(--success-soft)'};">${sign}${matched.points}</span>
         </div>
-        ${matched.confidence < 0.5 ? '<div style="font-size:11px; color:var(--text-dim); margin-top:8px;">⚠️ Low confidence — double-check before logging.</div>' : ''}
+        ${matched.confidence < 0.5 ? '<div style="font-size:11px; color:var(--text-dim); margin-top:8px;">⚠️ Low confidence — double-check, or create a new item below.</div>' : ''}
+      </div>
+      <button type="button" id="ai-create-from" style="margin-top:10px; font-size:12px; background:none; border:none; color:var(--text-muted); cursor:pointer; text-decoration:underline; padding:0;">Not the right item? ✨ Create a new one</button>`;
+    result.style.display = '';
+    wireCreateFrom();
+  };
+
+  // Shown when nothing in the catalog fits — offer to create an entry from the description.
+  const renderNoMatch = () => {
+    result.innerHTML = `
+      <div style="border:1px dashed var(--border); border-radius:12px; padding:14px; margin-top:10px; background:var(--bg-soft);">
+        <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">No existing activity or behavior fits that. Create one from this description?</div>
+        <button type="button" id="ai-create-from" class="btn btn-primary" style="width:100%; justify-content:center;">✨ Create it with AI</button>
       </div>`;
     result.style.display = '';
+    wireCreateFrom();
+  };
+
+  // Hand off the typed description to the one-shot creator.
+  const wireCreateFrom = () => {
+    const b = document.getElementById('ai-create-from');
+    if (b) b.onclick = () => { const t = desc.value.trim(); closeModal(); openAiCreateModal(t); };
   };
 
   const findMatch = async () => {
@@ -2085,7 +2104,7 @@ function openAiLogModal() {
     try {
       matched = await aiMatch(text);
       status.textContent = '';
-      renderMatch();
+      if (matched) renderMatch(); else renderNoMatch();
     } catch (e) {
       status.innerHTML = `<span style="color:var(--danger)">${escapeHtml(e.message)}</span>`;
     } finally {
@@ -3736,7 +3755,7 @@ function commitAiCreate(g) {
   return name;
 }
 
-function openAiCreateModal() {
+function openAiCreateModal(prefill) {
   modalTitle.textContent = '✨ Create with AI';
   modalBody.innerHTML = `
     <div style="font-size:13px; color:var(--text-muted); margin-bottom:10px;">Describe what you want to add — Claude figures out whether it's an earn, a deduction, or a reward, names it, picks a category, and sets the points/cost from your 📜 Rules.</div>
@@ -3794,6 +3813,7 @@ function openAiCreateModal() {
   };
   openModal();
   setTimeout(() => desc.focus(), 50);
+  if (prefill && prefill.trim()) { desc.value = prefill.trim(); generate(); }
 }
 
 // Lets an item modal (activity / reward / behavior) create a new category inline without leaving:
@@ -4208,6 +4228,13 @@ function openRecordDetailsModal(record) {
   const result = document.getElementById('rd-ai-result');
   let pendingMatch = null;   // set when the AI proposes a different item to re-point this record at
   let inFlight = false;
+  // Track whether the user hand-edited Duration/Note. If they haven't, each re-match is free to
+  // refresh those fields from the new description (fixes: 2nd description not updating them).
+  let userEditedDur = false, userEditedNote = false;
+  const fdInit = document.getElementById('f-dur');
+  const fnInit = document.getElementById('f-note');
+  if (fdInit) fdInit.addEventListener('input', () => { userEditedDur = true; });
+  if (fnInit) fnInit.addEventListener('input', () => { userEditedNote = true; });
   const effectiveKey = () => (runtimeAiKey || state.settings.anthropicKey || '').trim();
   if (!effectiveKey()) {
     status.innerHTML = '<span style="color:var(--text-dim)">Add an API key in Settings → ☁️ Data to re-match by description.</span>';
@@ -4258,6 +4285,7 @@ function openRecordDetailsModal(record) {
     try {
       pendingMatch = await aiMatch(text);
       status.textContent = '';
+      if (!pendingMatch) status.innerHTML = '<span style="color:var(--text-dim)">No matching item — keeping the original. (Add new items in Settings.)</span>';
       if (pendingMatch) {
         // If the description named a time ("5 hours ago"), pre-fill the date & time field.
         if (pendingMatch.occurredAt) {
@@ -4265,12 +4293,12 @@ function openRecordDetailsModal(record) {
           const fs = document.getElementById('f-start');
           if (fs && !isNaN(t)) fs.value = toLocalDatetimeInput(t);
         }
-        // Auto-fill duration + note from the description — only when the field is empty, so a
-        // value the user already typed is never clobbered.
+        // Auto-fill duration + note from the description. Refresh them on every re-match unless
+        // the user has hand-edited the field (then we leave their value alone).
         const fd = document.getElementById('f-dur');
-        if (fd && pendingMatch.durationMin && !fd.value.trim()) fd.value = pendingMatch.durationMin;
+        if (fd && pendingMatch.durationMin && !userEditedDur) fd.value = pendingMatch.durationMin;
         const fn = document.getElementById('f-note');
-        if (fn && pendingMatch.note && !fn.value.trim()) fn.value = pendingMatch.note;
+        if (fn && pendingMatch.note && !userEditedNote) fn.value = pendingMatch.note;
       }
       renderMatch();
     } catch (e) {
