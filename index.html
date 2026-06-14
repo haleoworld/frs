@@ -797,8 +797,15 @@
   }
   .modal h2 button.close {
     color: var(--text-muted);
-    padding: 4px; border-radius: 8px;
+    border-radius: 10px;
+    width: 40px; height: 40px;
+    font-size: 22px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex: none;
+    margin: -6px -8px -6px 0;   /* bigger hit area without inflating header height */
   }
+  .modal h2 button.close:hover { background: var(--bg-soft); color: var(--text); }
+  .modal h2 button.close:active { background: var(--bg-soft); transform: scale(0.94); }
   .modal-body { padding: 16px 18px; }
   .modal-footer {
     padding: 12px 18px;
@@ -1815,7 +1822,25 @@ function renderActivityList() {
 
 /* ---------- Logging ---------- */
 let recentLimit = 8;
-function logActivity(activity, btn) {
+
+// Apply AI-extracted extras (date/time, duration, note) onto a freshly-created record.
+function applyRecordMeta(rec, meta) {
+  if (!meta) return;
+  if (meta.occurredAt) {
+    const t = Date.parse(meta.occurredAt);
+    if (!isNaN(t)) {
+      const d = new Date(t);
+      rec.timestamp = t;
+      rec.dateISO = todayKey(d);
+      const pad = n => String(n).padStart(2, '0');
+      rec.startTime = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+  }
+  if (meta.durationMin && meta.durationMin > 0) rec.durationMin = Math.round(meta.durationMin);
+  if (meta.note && meta.note.trim()) rec.note = meta.note.trim();
+}
+
+function logActivity(activity, btn, meta) {
   const p = activePerson();
   if (!p) { toast('Pick a person first'); return; }
   const pts = activityPoints(activity);
@@ -1828,6 +1853,7 @@ function logActivity(activity, btn) {
     points: pts,
     kind: 'earn',
   };
+  applyRecordMeta(rec, meta);
   state.records.push(rec);
   save();
   renderPersonRow();
@@ -1901,6 +1927,7 @@ function logMisbehavior(misbehavior, btn, opts) {
     points: pts,  // positive magnitude; balance math subtracts it
     kind: 'deduct',
   };
+  applyRecordMeta(rec, opts && opts.meta);
   state.records.push(rec);
   save();
   renderPersonRow();
@@ -2048,7 +2075,7 @@ function openAiLogModal() {
     <div class="form-group">
       <label>Describe what they did</label>
       <div class="ai-input-wrap">
-        <textarea id="ai-desc" rows="2" placeholder="e.g. brushed teeth, threw a tantrum, refused to do homework"></textarea>
+        <textarea id="ai-desc" rows="2" placeholder="e.g. read a book for 20 min, 2 hours ago — time, duration & notes are parsed too"></textarea>
         <button type="button" class="ai-go-btn" id="ai-desc-go">✨ Match</button>
       </div>
     </div>
@@ -2085,6 +2112,13 @@ function openAiLogModal() {
           </div>
           <span style="font-weight:700; padding:6px 12px; border-radius:999px; ${isMis ? 'color:var(--danger); background:var(--danger-soft)' : 'color:var(--success); background:var(--success-soft)'};">${sign}${matched.points}</span>
         </div>
+        ${(() => {
+          const extra = [];
+          if (matched.occurredAt && !isNaN(Date.parse(matched.occurredAt))) extra.push('🕐 ' + escapeHtml(new Date(Date.parse(matched.occurredAt)).toLocaleString()));
+          if (matched.durationMin) extra.push('⏱️ ' + matched.durationMin + ' min');
+          if (matched.note) extra.push('📝 ' + escapeHtml(matched.note));
+          return extra.length ? `<div style="font-size:12px; color:var(--text-muted); margin-top:10px; border-top:1px solid var(--border-soft); padding-top:8px; line-height:1.6;">${extra.join('<br>')}</div>` : '';
+        })()}
         ${matched.confidence < 0.5 ? '<div style="font-size:11px; color:var(--text-dim); margin-top:8px;">⚠️ Low confidence — double-check, or create a new item below.</div>' : ''}
       </div>
       <button type="button" id="ai-create-from" style="margin-top:10px; font-size:12px; background:none; border:none; color:var(--text-muted); cursor:pointer; text-decoration:underline; padding:0;">Not the right item? ✨ Create a new one</button>`;
@@ -2138,14 +2172,15 @@ function openAiLogModal() {
   modalSave.textContent = 'Log it';
   modalSave.onclick = () => {
     if (!matched) { alert('Wait for a match, or type a description first.'); return; }
+    const meta = { occurredAt: matched.occurredAt, durationMin: matched.durationMin, note: matched.note };
     if (matched.kind === 'activity') {
       const a = state.activities.find(x => x.id === matched.id);
       if (!a) { alert('Activity not found — pick again'); return; }
-      logActivity(a, null);
+      logActivity(a, null, meta);
     } else {
       const m = state.misbehaviors.find(x => x.id === matched.id);
       if (!m) { alert('Behavior item not found — pick again'); return; }
-      logMisbehavior(m, null, { skipConfirm: true });
+      logMisbehavior(m, null, { skipConfirm: true, meta });
     }
     closeModal();
   };
